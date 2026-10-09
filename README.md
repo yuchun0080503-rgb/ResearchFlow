@@ -10,6 +10,32 @@
 > 不是密碼——所有 Firebase 網站都會把它放在網頁原始碼裡，Google 官方文件也說明它不需要保密。
 > 真正的存取控制寫在 `firestore.rules`。
 
+## 給隊友：第一次下載後怎麼開始
+
+這個 GitHub 專案包含完整系統（網頁、資料層、Agent、安全規則、測試），不是只有畫面。
+唯一沒有放進來的是 `src/firebase-config.js`（Firebase 連線設定，刻意不進 Git），所以下載後要先產生它，否則網頁只會進入展示模式。
+
+前置：安裝 [Node.js](https://nodejs.org/) 20 以上；請專案擁有者把你的 Google 帳號加進 Firebase 專案（Firebase Console → 專案設定 → 使用者和權限 → 新增成員，角色選「編輯者」）。
+
+```bash
+npm install
+```
+
+```bash
+npx firebase login
+```
+
+```bash
+npm run config
+```
+
+```bash
+npm start
+```
+
+然後開 `http://localhost:5173`。改完程式後先跑 `npm test`，再用 Git 提交並推送；要更新線上網站時執行 `npm run deploy`。
+大家連的是同一個 Firebase 專案，所以本機測試寫入的資料就是線上的真實資料。
+
 ## 功能
 
 | 功能 | 說明 |
@@ -45,6 +71,7 @@ src/
   firebase-config.example.js  設定值範本
 firestore.rules            Firestore 安全規則（所有硬限制都在這裡，由 Firebase 伺服器強制執行）
 firebase.json              rules／hosting 設定
+tools/make-config.mjs      產生 src/firebase-config.js（npm run config）
 ```
 
 ## 指令

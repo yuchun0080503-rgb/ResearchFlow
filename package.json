@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node dev-server.mjs",
     "test": "node --test src/*.test.mjs",
-    "deploy": "firebase deploy --only firestore:rules,hosting"
+    "deploy": "firebase deploy --only firestore:rules,hosting",
+    "config": "node tools/make-config.mjs"
   },
   "license": "ISC",
   "devDependencies": {
