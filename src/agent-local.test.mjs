@@ -40,11 +40,19 @@ test('proposeQuestion：把回答套進問題；學生自己寫的問題原樣�
   assert.equal(proposeQuestion({ items: canvas, answers, ownQuestion: ' 我們的問題 ' }).researchQuestion, '我們的問題');
 });
 
-test('buildQueries：第 2 輪起刻意找反向方向；沒有關鍵字就不查', () => {
-  assert.equal(buildQueries(['a', 'b'], 0).kind, 's');
-  const r2 = buildQueries(['a', 'b'], 1);
-  assert.equal(r2.kind, 'c');
-  assert.match(r2.queries[0], /^a b negative effects$/);
+test('buildQueries：主題詞用 AND 接起來且都要出現，同義詞用 OR；第 2 輪起刻意找反向方向；沒有關鍵字就不查', () => {
+  const r0 = buildQueries(['mobile phone', 'sleep', 'secondary school students', 'classroom learning'], 0, 'procon', 2);
+  assert.deepEqual([r0.kind, r0.core, r0.scope], ['s', ['mobile phone', 'sleep'], ['secondary school students', 'classroom learning']]);
+  assert.equal(r0.queries[0], '("mobile phone" OR smartphone) AND (sleep OR "sleep quality") AND ("secondary school students" OR adolescents)');
+  assert.equal(r0.queries[1], '("mobile phone" OR smartphone OR cellphone) AND (sleep OR "sleep quality" OR "sleep duration")');
+  const r1 = buildQueries(['mobile phone', 'sleep'], 1);
+  assert.equal(r1.kind, 'c');
+  assert.match(r1.queries[0], /AND \(negative OR risk\)$/);
+  // 每條查詢最多 5 個布林運算子（超過會被文獻資料庫限速）
+  for (const q of [...r0.queries, ...r1.queries]) assert.ok((q.match(/ AND | OR /g) || []).length <= 5, q);
+  // 只有一個關鍵字：就查那一個；指定只有 1 個主題詞但有第二個關鍵字時，第二個也當成必要條件（不然範圍太大）
+  assert.deepEqual(buildQueries(['origami'], 0).queries, ['origami']);
+  assert.deepEqual(buildQueries(['origami', 'geometry'], 0, 'procon', 1).core, ['origami', 'geometry']);
   assert.deepEqual(buildQueries([], 0).queries, []);
 });
 
@@ -88,11 +96,12 @@ test('suggestMode：題目有正反／利弊／影響等字眼建議正反例證
 
 test('buildQueries：主張論證模式依序找直接證據、統整性研究、成立條件；反面例證要另外要求', () => {
   const kw = ['sleep', 'academic performance'];
-  assert.deepEqual(buildQueries(kw, 0, 'claim'), { kind: 's', queries: ['sleep academic performance', 'sleep academic performance evidence'] });
-  assert.match(buildQueries(kw, 1, 'claim').queries.join('|'), /systematic review.*meta-analysis/);
+  assert.equal(buildQueries(kw, 0, 'claim').kind, 's');
+  assert.match(buildQueries(kw, 0, 'claim').queries[0], /^\(sleep OR "sleep quality"/);
+  assert.match(buildQueries(kw, 1, 'claim').queries[0], /"systematic review" OR meta-analysis/);
   assert.equal(buildQueries(kw, 2, 'claim').kind, 's'); // 第 3 輪找成立條件與機制，仍然是幫主張找證據
   assert.match(buildQueries(kw, 2, 'claim').queries[0], /mechanism/);
-  assert.deepEqual([buildQueries(kw, 'counter', 'claim').kind, buildQueries(kw, 'counter', 'claim').queries.length], ['c', 2]); // 反面例證只有學生要求時才找
+  assert.equal(buildQueries(kw, 'counter', 'claim').kind, 'c'); // 反面例證只有學生要求時才找
   assert.equal(buildQueries(kw, 1).kind, 'c'); // 沒指定模式＝正反例證：第 2 輪找反向
 });
 
@@ -164,7 +173,7 @@ test('searchEvidence：英文與中文查詢一起跑，中文查詢帶 language
   const urls = [];
   const mk = (id, title, words) => ({ id, doi: 'https://doi.org/' + id, display_name: title, publication_year: 2022, authorships: [], abstract_inverted_index: Object.fromEntries(words.map((x, i) => [x, [i]])) });
   const svc = async (url) => { urls.push(decodeURIComponent(url)); const zh = url.includes('language%3Azh');
-    return { ok: true, json: async () => ({ results: zh ? [mk('Z1', '中文論文', ['睡眠', '有助', '提升', '成績'])] : [mk('E1', 'English paper', ['sleep', 'improved', 'grades'])] }) }; };
+    return { ok: true, json: async () => ({ results: zh ? [mk('Z1', '大學生睡眠研究', ['睡眠', '有助', '提升', '成績'])] : [mk('E1', 'English paper', ['sleep', 'improved', 'grades'])] }) }; };
   const r = await searchEvidence({ queries: ['sleep grades'], zhQueries: ['睡眠 成績'], kind: 's', keywords: ['sleep'], keywordsZh: ['睡眠'] }, svc);
   assert.deepEqual(r.evidence.map((e) => e.lang), ['en', 'zh']);
   assert.deepEqual(r.queries, ['sleep grades', '睡眠 成績']);
@@ -176,7 +185,7 @@ test('searchEvidence：英文與中文查詢一起跑，中文查詢帶 language
   assert.equal(strict.evidence.length, 0);
 });
 
-import { extractZhTerms } from './agent-local.mjs';
+import { extractZhTerms, relevance, boolQuery, isNegativeClaim } from './agent-local.mjs';
 
 test('extractZhTerms：用詞庫做最長詞比對，去掉功能詞與太常見的詞，依出現順序回傳', () => {
   const rank = { 高中生: 9000, 高中: 3000, 手機: 2500, 睡眠: 4000, 可能: 120, 因為: 130, 影響: 200, 睡前: 15000, 的: 105, 學業成績: 12000, 學業: 6000, 成績: 900, 批判思考: 50, 需要: 110 };
@@ -186,4 +195,74 @@ test('extractZhTerms：用詞庫做最長詞比對，去掉功能詞與太常見
   assert.deepEqual(extractZhTerms('需要批判思考', rankOf), ['批判思考']); // 手動加入的研究常用詞排在詞表最前面，一定保留
   assert.deepEqual(extractZhTerms('English only', rankOf), []);
   assert.deepEqual(extractZhTerms('手機', () => undefined), []); // 詞庫還沒載入
+});
+
+test('boolQuery：先保證每一組都有一個詞，剩下的額度才補同義詞，總共最多 5 個運算子', () => {
+  assert.equal(boolQuery([['a', 'a2', 'a3'], ['b', 'b2'], ['c']]), '(a OR a2 OR a3) AND (b OR b2) AND c');
+  assert.equal(boolQuery([['a', 'a2'], ['b', 'b2'], ['c', 'c2'], ['d', 'd2']]), '(a OR a2) AND (b OR b2) AND c AND d');
+  assert.equal(boolQuery([['two words']]), '"two words"');
+  assert.equal(boolQuery([]), '');
+});
+
+test('relevance：每個主題詞（或同義詞）都要出現在標題或摘要；出現在標題的分數比較高', () => {
+  const core = ['mobile phone', 'sleep'];
+  const a = relevance({ title: 'Smartphone use and sleep quality in adolescents', abstract: '' }, core, ['secondary school students']);
+  assert.deepEqual([a.ok, a.coreHit, a.inTitle], [true, 2, 2]);
+  const b = relevance({ title: 'Screen time in schools', abstract: 'We surveyed cellphone habits and sleep.' }, core);
+  assert.deepEqual([b.ok, b.inTitle], [true, 0]);
+  assert.ok(a.score > b.score);
+  assert.equal(relevance({ title: 'Mobile phone use in class', abstract: 'Attention and grades.' }, core).ok, false); // 沒提到睡眠 → 離題
+});
+
+test('classifyWork：主張本身是負面的時候，發現負面結果的研究算「支持」', () => {
+  assert.equal(isNegativeClaim('高中生睡前滑手機會讓睡眠變差'), true);
+  assert.equal(isNegativeClaim('生成式 AI 能提升學習效率'), false);
+  const w = { id: 'W9', title: 'Smartphone addiction and sleep', year: 2023, doi: 'https://doi.org/9', url: 'https://doi.org/9', authors: [], venue: '', q: 'q',
+    abstract: 'Smartphone addiction was associated with reduced sleep quality and higher risk of insomnia among adolescents in this survey.' };
+  assert.equal(classifyWork(w, 's', [], false).k, 'c');
+  assert.equal(classifyWork(w, 's', [], true).k, 's');
+});
+
+test('searchEvidence：離題的文獻（沒有提到全部主題詞）會被丟掉，其餘依相關度排序', async () => {
+  const mk = (id, title, text) => ({ id, doi: 'https://doi.org/' + id, display_name: title, publication_year: 2023, authorships: [], abstract_inverted_index: Object.fromEntries(text.split(' ').map((x, i) => [x + '\u200b'.repeat(i), [i]])) });
+  const svc = async () => ({ ok: true, json: async () => ({ results: [
+    mk('A', 'Phones in the classroom', 'mobile phone use and attention in class'),
+    mk('B', 'Evening habits of teenagers', 'smartphone use was linked to shorter sleep duration'),
+    mk('C', 'Mobile phone use and sleep quality', 'mobile phone use improved nothing and sleep suffered'),
+  ] }) });
+  const plan = buildQueries(['mobile phone', 'sleep'], 0);
+  const r = await searchEvidence({ ...plan, keywords: ['mobile phone', 'sleep'] }, svc);
+  assert.deepEqual(r.evidence.map((e) => e.id), ['C', 'B']);
+  assert.deepEqual(r.evidence.map((e) => e.rel), ['高', '中']);
+  assert.equal(r.dropped, 1);
+});
+
+test('searchEvidence：OpenAlex 額度用完（429）時自動改查 Crossref，並告知是備援；撤稿的論文不要', async () => {
+  const urls = [];
+  const svc = async (url) => { urls.push(url);
+    if (url.includes('openalex')) return { ok: false, status: 429 };
+    return { ok: true, json: async () => ({ message: { items: [
+      { DOI: '10.1/a', title: ['Smartphone use and sleep quality'], abstract: '<p>mobile phone use reduced sleep</p>', issued: { 'date-parts': [[2022]] } },
+      { DOI: '10.1/b', title: ['RETRACTED: Mobile phone and sleep'], abstract: '<p>mobile phone sleep</p>', issued: { 'date-parts': [[2021]] } },
+      { DOI: '10.1/c', title: ['Phones at school'], abstract: '<p>smartphone bans and grades</p>', issued: { 'date-parts': [[2023]] } },
+    ] } }) }; };
+  const r = await searchEvidence({ ...buildQueries(['mobile phone', 'sleep'], 0), keywords: ['mobile phone', 'sleep'] }, svc);
+  assert.equal(r.fallback, true);
+  assert.deepEqual(r.evidence.map((e) => [e.id, e.src]), [['https://doi.org/10.1/a', 'Crossref']]);
+  assert.ok(urls.some((u) => u.includes('api.crossref.org')));
+  await assert.rejects(searchEvidence({ ...buildQueries(['mobile phone', 'sleep'], 0) }, async () => ({ ok: false, status: 500 })), /都沒有回應/);
+});
+
+import { searchRelaxed } from './agent-local.mjs';
+
+test('searchRelaxed：全部主題詞都要求時找不到，就把最後一個主題詞放寬再找；回報放寬了哪個', async () => {
+  const mk = (id, title, text) => ({ id, doi: 'https://doi.org/' + id, display_name: title, publication_year: 2023, authorships: [], abstract_inverted_index: Object.fromEntries(text.split(' ').map((x, i) => [x + '​'.repeat(i), [i]])) });
+  const works = ['A', 'B', 'C', 'D'].map((id) => mk(id, 'Social media and anxiety ' + id, 'social media use and anxiety in teens'));
+  const svc = async () => ({ ok: true, json: async () => ({ results: works }) });
+  const r = await searchRelaxed({ keywords: ['social media', 'anxiety', 'active hours'], coreCount: 3, round: 0, mode: 'procon' }, svc);
+  assert.deepEqual(r.relaxed, ['active hours']);
+  assert.equal(r.evidence.length, 4);
+  assert.deepEqual([...new Set(r.evidence.map((e) => e.rel))], ['中']); // 放寬後才找到的不算「高」
+  const strict = await searchRelaxed({ keywords: ['social media', 'anxiety'], coreCount: 2, round: 0, mode: 'procon' }, svc);
+  assert.deepEqual([strict.relaxed, strict.evidence[0].rel], [[], '高']);
 });

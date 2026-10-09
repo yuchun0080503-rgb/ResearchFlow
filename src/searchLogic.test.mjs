@@ -59,3 +59,20 @@ test('dedupeWorks：同一篇只留一次，並排除前幾輪已經有的', () 
   const a = { id: 'A' }, b = { id: 'B' }, c = { id: 'C' };
   assert.deepEqual(dedupeWorks([a, b, null, a, c], ['C']), [a, b]);
 });
+
+import { crossrefUrl, normalizeCrossref } from './searchLogic.mjs';
+
+test('crossrefUrl：把布林查詢攤平成一串詞，並帶上年份、期刊論文、有摘要的篩選', () => {
+  const url = new URL(crossrefUrl('("mobile phone" OR smartphone) AND sleep', { fromYear: 2021 }));
+  assert.equal(url.searchParams.get('query.bibliographic'), 'mobile phone smartphone sleep');
+  assert.match(url.searchParams.get('filter'), /from-pub-date:2021-01-01.*has-abstract:true/);
+});
+
+test('normalizeCrossref：整理成跟 OpenAlex 一樣的格式，摘要的 XML 標籤要拿掉；沒有摘要或 DOI 的不要', () => {
+  const item = { DOI: '10.1/x', title: ['A <i>study</i>'], abstract: '<jats:title>Abstract</jats:title><jats:p>Sleep  improved.</jats:p>', issued: { 'date-parts': [[2023, 5]] },
+    author: [{ given: 'A', family: 'Lin' }, { family: 'Wu' }], 'container-title': ['J'] };
+  assert.deepEqual(normalizeCrossref(item, 'q'), { id: 'https://doi.org/10.1/x', title: 'A study', year: 2023, doi: 'https://doi.org/10.1/x', url: 'https://doi.org/10.1/x',
+    authors: ['A Lin', 'Wu'], venue: 'J', abstract: 'Sleep improved.', q: 'q', src: 'Crossref' });
+  assert.equal(normalizeCrossref({ ...item, abstract: '' }, 'q'), null);
+  assert.equal(normalizeCrossref({ title: ['x'], abstract: 'y' }, 'q'), null);
+});

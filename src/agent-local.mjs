@@ -7,7 +7,7 @@
 //   - 證據分類：依摘要裡的正向／負向用語做「初步分類」，一律標示為待小組確認，學生可以改列
 // 純邏輯都在這個檔案，可以用 node:test 驗證；唯一的網路呼叫是 searchEvidence 裡的 fetch。
 
-import { clampQueries, openAlexUrl, normalizeWork, dedupeWorks } from './searchLogic.mjs';
+import { clampQueries, openAlexUrl, normalizeWork, dedupeWorks, crossrefUrl, normalizeCrossref } from './searchLogic.mjs';
 
 const clean = (items) =>
   (Array.isArray(items) ? items : [])
@@ -72,7 +72,8 @@ const TERMS = [
   [/生成式\s*AI|生成式人工智慧|ChatGPT|大型語言模型|LLM/i, 'generative AI'],
   [/人工智慧|(?<![a-z])AI(?![a-z])/i, 'artificial intelligence'],
   [/大學生?|大專生?|undergraduate/i, 'university students'],
-  [/高中|國中|中學|國高中/, 'secondary school students'],
+  [/高中生?|國中生?|中學生?|國高中生?/, 'secondary school students'],
+  [/青少年/, 'adolescents'],
   [/國小|小學|學童|兒童/, 'primary school students'],
   [/研究生|碩士|博士/, 'graduate students'],
   [/教師|老師/, 'teachers'],
@@ -91,7 +92,36 @@ const TERMS = [
   [/創造力|創意/, 'creativity'],
   [/焦慮|壓力/, 'anxiety'],
   [/社群媒體|社交媒體/, 'social media'],
+  [/睡眠品質/, 'sleep quality'],
   [/睡眠/, 'sleep'],
+  [/智慧型手機|智慧手機/, 'smartphone'],
+  [/手機/, 'mobile phone'],
+  [/使用時間|螢幕時間/, 'screen time'],
+  [/網路成癮|網路沉迷/, 'internet addiction'],
+  [/電玩|線上遊戲|電子遊戲/, 'video games'],
+  [/心理健康/, 'mental health'],
+  [/憂鬱/, 'depression'],
+  [/壓力/, 'stress'],
+  [/自尊/, 'self-esteem'],
+  [/幸福感/, 'well-being'],
+  [/注意力|專注力/, 'attention'],
+  [/記憶力?/, 'memory'],
+  [/運動/, 'exercise'],
+  [/飲食/, 'diet'],
+  [/肥胖/, 'obesity'],
+  [/霸凌/, 'bullying'],
+  [/閱讀理解/, 'reading comprehension'],
+  [/閱讀/, 'reading'],
+  [/補習/, 'private tutoring'],
+  [/雙語/, 'bilingual education'],
+  [/英語學習|英文學習/, 'English language learning'],
+  [/氣候變遷/, 'climate change'],
+  [/永續/, 'sustainability'],
+  [/疫情|新冠/, 'COVID-19'],
+  [/打工/, 'part-time work'],
+  [/同儕/, 'peer influence'],
+  [/家長|父母/, 'parents'],
+  [/學習成效/, 'learning outcomes'],
   [/學習/, 'learning'],
 ];
 
@@ -242,27 +272,142 @@ export function claimIssues(claim, evidence, heldCount = 0) {
 // 把「要查證的主張」寫成研究問題的草案
 export const claimQuestion = (claim) => `「${String(claim || '').trim().slice(0, 80)}」這個主張成立嗎？在什麼條件下成立，又有哪些限制？`;
 
-// 每一輪要查什麼。一律用「小組目前確認的關鍵字」組成，所以學生在介面上增刪關鍵字會直接改變搜尋結果。
-//   正反例證模式：第 1 輪找一般／支持方向，第 2 輪刻意找負面與限制，之後做探索性補搜。
-//   主張論證模式：第 1 輪找直接證據，第 2 輪找統整性研究（系統性回顧、後設分析——證據力最高），第 3 輪找成立條件與機制；
-//               round 傳 'counter' 才是找反面例證（只有學生看完潛在問題、表示需要時才會呼叫）。
-export function buildQueries(keywords, round, mode = 'procon') {
-  const base = (Array.isArray(keywords) ? keywords : []).filter((k) => typeof k === 'string' && k.trim()).slice(0, 4).join(' ');
-  if (!base) return { kind: 's', queries: [] };
-  if (mode === 'claim') {
-    if (round === 0) return { kind: 's', queries: [base, `${base} evidence`] };
-    if (round === 1) return { kind: 's', queries: [`${base} systematic review`, `${base} meta-analysis`] };
-    if (round === 'counter') return { kind: 'c', queries: [`${base} limitations`, `${base} criticism contrary evidence`] };
-    return { kind: 's', queries: [`${base} mechanism`, `${base} moderators conditions`] };
+// ---------------- 查詢怎麼組：讓結果一定跟題目有關 ----------------
+// 以前是把關鍵字用空白接起來丟給全文搜尋，只要沾到其中一兩個詞就會被找出來，結果常常離題。
+// 現在把關鍵字分成兩種：
+//   主題詞（core）：論點／主張本身在講的東西（手機、睡眠）——每一篇結果的「標題或摘要」都必須提到每一個主題詞；
+//   範圍詞（scope）：研究對象、情境（高中生、課堂）——用來縮小範圍，找不夠時可以放掉。
+// 查詢用布林式，只比對標題與摘要；同義詞用 OR 併在一起（mobile phone OR smartphone），避免因為用詞不同而漏掉。
+// 找回來之後再算一次相關度（主題詞出現在標題的比較高），不符合的丟掉，其餘由高到低排。
+
+// 常見研究用語的同義詞（比對時也會用到）。key 一律小寫。
+const SYNONYMS = {
+  'mobile phone': ['smartphone', 'cellphone', 'cell phone'],
+  smartphone: ['mobile phone', 'cellphone'],
+  'secondary school students': ['adolescents', 'high school students', 'teenagers'],
+  adolescents: ['teenagers', 'adolescence', 'youth'],
+  adolescence: ['adolescents', 'teenagers'],
+  'screen time': ['usage time', 'duration of use'],
+  'internet addiction': ['problematic internet use'],
+  'video games': ['gaming'],
+  stress: ['perceived stress'],
+  depression: ['depressive symptoms'],
+  'university students': ['undergraduates', 'college students', 'undergraduate students'],
+  'primary school students': ['children', 'elementary school students'],
+  'graduate students': ['postgraduate students', 'doctoral students'],
+  teachers: ['educators', 'instructors'],
+  students: ['learners'],
+  'generative ai': ['ChatGPT', 'large language models', 'generative artificial intelligence'],
+  'artificial intelligence': ['AI', 'machine learning'],
+  'academic performance': ['academic achievement', 'grades', 'GPA'],
+  'critical thinking': ['higher-order thinking'],
+  'social media': ['social networking sites', 'Instagram'],
+  sleep: ['sleep quality', 'sleep duration'],
+  anxiety: ['anxious'],
+  motivation: ['engagement'],
+  'academic integrity': ['plagiarism', 'cheating'],
+  dependency: ['overreliance', 'dependence', 'addiction'],
+  'online learning': ['e-learning', 'distance learning'],
+  'self-directed learning': ['self-regulated learning'],
+  'academic writing': ['essay writing', 'writing skills'],
+  'classroom learning': ['classroom'],
+  'exam preparation': ['test preparation'],
+  'learning efficiency': ['learning outcomes'],
+  creativity: ['creative thinking'],
+  'mental health': ['well-being', 'psychological distress'],
+  exercise: ['physical activity'],
+};
+// 一個關鍵字連同它的同義詞
+export const termGroup = (term) => [String(term).trim(), ...(SYNONYMS[String(term).trim().toLowerCase()] || [])].filter(Boolean);
+const quote = (t) => (/\s/.test(t) ? `"${t}"` : t);
+
+// OpenAlex 對布林運算子超過 5 個的查詢有每秒一次的限制，所以每條查詢最多用 5 個 AND／OR：
+// 先保證每一組都有一個詞（AND 接起來），剩下的額度再輪流補同義詞。
+const MAX_OPS = 5;
+export function boolQuery(groups) {
+  const gs = groups.map((g) => (Array.isArray(g) ? g : [g]).filter(Boolean)).filter((g) => g.length).slice(0, MAX_OPS + 1);
+  if (!gs.length) return '';
+  const used = gs.map((g) => [g[0]]);
+  let ops = gs.length - 1;
+  for (let depth = 1; ops < MAX_OPS; depth++) {
+    let added = false;
+    for (let i = 0; i < gs.length && ops < MAX_OPS; i++) if (gs[i][depth]) { used[i].push(gs[i][depth]); ops++; added = true; }
+    if (!added) break;
   }
-  if (round === 0) return { kind: 's', queries: [base, `${base} benefits effectiveness`] };
-  if (round === 1) return { kind: 'c', queries: [`${base} negative effects`, `${base} risks limitations`] };
-  return { kind: 'c', queries: [`${base} challenges concerns`, `${base} systematic review`] };
+  return used.map((g) => (g.length > 1 ? `(${g.map(quote).join(' OR ')})` : quote(g[0]))).join(' AND ');
 }
 
-// 中文文獻的查詢：直接用中文關鍵字（前 3 個），各輪加上的方向用語跟英文版對應。
-export function buildQueriesZh(keywordsZh, round, mode = 'procon') {
-  const base = (Array.isArray(keywordsZh) ? keywordsZh : []).filter((k) => typeof k === 'string' && hasZh(k)).slice(0, 3).join(' ');
+// 各輪額外要求出現的方向用語
+const DIRECTION = {
+  negative: ['negative', 'risk', 'harm', 'adverse'],
+  limits: ['limitations', 'concerns', 'challenges'],
+  review: ['systematic review', 'meta-analysis'],
+  mechanism: ['mechanism', 'mediating', 'moderating'],
+  contrary: ['limitations', 'no significant', 'contrary'],
+};
+
+// 每一輪要查什麼。keywords 是英文關鍵字，主題詞排在前面；coreCount 是其中前幾個算主題詞（最多用 3 個）。
+//   正反例證模式：第 1 輪找一般／支持方向，第 2 輪刻意找負面與限制，之後找統整性研究。
+//   主張論證模式：第 1 輪找直接證據，第 2 輪找統整性研究（系統性回顧、後設分析——證據力最高），第 3 輪找成立條件與機制；
+//               round 傳 'counter' 才是找反面例證（只有學生看完潛在問題、表示需要時才會呼叫）。
+// 回傳 {kind, queries, core, scope}：queries 是布林查詢（比對標題與摘要），core／scope 給事後的相關度檢查用。
+export function buildQueries(keywords, round, mode = 'procon', coreCount = 2) {
+  const all = (Array.isArray(keywords) ? keywords : []).filter((k) => typeof k === 'string' && k.trim()).map((k) => k.trim());
+  if (!all.length) return { kind: 's', queries: [], core: [], scope: [] };
+  // 只有一個主題詞時範圍太大，把下一個關鍵字也當成必要條件
+  const n = Math.min(3, Math.max(all.length > 1 ? 2 : 1, coreCount));
+  const core = all.slice(0, n), scope = all.slice(n, n + 2);
+  const C = core.map(termGroup), withScope = scope.length ? [...C, termGroup(scope[0])] : C;
+  const plus = (dir) => boolQuery([...C, DIRECTION[dir]]);
+  const uniq = (list) => [...new Set(list.filter(Boolean))];
+  let kind = 's', queries;
+  if (round === 'counter') { kind = 'c'; queries = [plus('contrary'), plus('negative')]; }
+  else if (mode === 'claim') queries = round === 0 ? [boolQuery(withScope), boolQuery(C)] : round === 1 ? [plus('review'), boolQuery(withScope)] : [plus('mechanism'), boolQuery(C)];
+  else if (round === 0) queries = [boolQuery(withScope), boolQuery(C)];
+  else if (round === 1) { kind = 'c'; queries = [plus('negative'), plus('limits')]; }
+  else { kind = 'c'; queries = [plus('review'), plus('limits')]; }
+  return { kind, queries: uniq(queries), core, scope };
+}
+
+/**
+ * 搜尋並在找不到時逐步放寬。先要求全部主題詞都出現；切題的文獻不到 minHits 篇時，
+ * 把排在最後的主題詞降為範圍詞再查一次（最少保留 2 個主題詞，只有 1 個時就 1 個）。
+ * 所以呼叫端要把最重要、翻譯最可靠的主題詞排在前面。
+ * @returns 與 searchEvidence 相同，另外多 relaxed：被降為範圍詞的主題詞（英文）
+ */
+export async function searchRelaxed({ keywords, coreCount = 2, round, mode, minHits = 4, ...rest }, fetchImpl = fetch) {
+  const start = buildQueries(keywords, round, mode, coreCount).core.length;
+  let out = null, n = start, queries = [];
+  for (; n >= Math.min(2, start); n--) {
+    const plan = buildQueries(keywords, round, mode, n);
+    const got = await searchEvidence({ ...rest, ...plan, keywords }, fetchImpl);
+    queries = [...queries, ...got.queries.filter((q) => !queries.includes(q))];
+    // 放寬後找到的也併進來，但嚴格條件找到的排前面
+    out = out ? { ...got, evidence: [...out.evidence, ...got.evidence.filter((e) => !out.evidence.some((x) => x.id === e.id)).map((e) => ({ ...e, rel: '中' }))], dropped: out.dropped + got.dropped, fallback: out.fallback || got.fallback } : got;
+    if (out.evidence.filter((e) => e.lang !== 'zh').length >= minHits) break;
+  }
+  const kept = Math.max(n, Math.min(2, start));
+  return { ...out, evidence: out.evidence.slice(0, 10), scanned: Math.min(10, out.evidence.length), queries, relaxed: buildQueries(keywords, round, mode, start).core.slice(kept) };
+}
+
+/**
+ * 一篇文獻跟題目的相關度。
+ * @returns {{ok:boolean, score:number, coreHit:number, inTitle:number}} ok：每個主題詞（或它的同義詞）都出現在標題或摘要
+ */
+export function relevance(work, core, scope = []) {
+  const title = String(work.title || '').toLowerCase(), body = String(work.abstract || '').toLowerCase();
+  const hit = (term, text) => termGroup(term).some((t) => text.includes(t.toLowerCase()));
+  let score = 0, coreHit = 0, inTitle = 0;
+  for (const c of core) {
+    if (hit(c, title)) { score += 3; coreHit++; inTitle++; } else if (hit(c, body)) { score += 1.5; coreHit++; }
+  }
+  for (const s of scope) score += hit(s, title) ? 1.5 : hit(s, body) ? 0.75 : 0;
+  return { ok: coreHit === core.length, score, coreHit, inTitle };
+}
+
+// 中文文獻的查詢：直接用中文主題詞（coreZh 個，最多 3 個），各輪加上的方向用語跟英文版對應。
+export function buildQueriesZh(keywordsZh, round, mode = 'procon', coreZh = 3) {
+  const base = (Array.isArray(keywordsZh) ? keywordsZh : []).filter((k) => typeof k === 'string' && hasZh(k)).slice(0, Math.min(3, Math.max(1, coreZh))).join(' ');
   if (!base) return [];
   if (mode === 'claim') {
     if (round === 0) return [base];
@@ -317,13 +462,19 @@ export const evidenceLevel = (method) => LEVELS[method] || '不明';
 const count = (re, text) => (text.match(re) || []).length;
 
 // work：searchLogic.normalizeWork 的輸出；kind：這篇是哪個方向的查詢找到的（'s'／'c'），正負用語一樣多時用它決定。
-export function classifyWork(work, kind, keywords = []) {
+// 主張本身是不是在說「變差／有害」這一類負面的事。是的話，發現負面結果的研究其實是「支持」這個主張，方向要反過來判。
+const NEGATIVE_CLAIM = /變差|變糟|惡化|降低|下降|減少|減弱|負面|負向|危害|傷害|有害|不利|不足|依賴|成癮|沉迷|焦慮|風險|阻礙|妨礙|干擾|worse|harm|reduc|decreas|negativ|impair|risk/i;
+export const isNegativeClaim = (claim) => NEGATIVE_CLAIM.test(String(claim || ''));
+
+// claimNeg：主張本身是負面的（見 isNegativeClaim）——這時負面發現算支持、正面發現算反向。
+export function classifyWork(work, kind, keywords = [], claimNeg = false) {
   const text = `${work.title}. ${work.abstract}`;
   const zh = hasZh(work.title) || (work.abstract.match(/[一-鿿]/g) || []).length > work.abstract.length / 4; // 中文文獻用中文的線索詞
   const [POS, NEG, METHOD, POPULATION] = zh ? [POSITIVE_ZH, NEGATIVE_ZH, METHODS_ZH, POPULATIONS_ZH] : [POSITIVE, NEGATIVE, METHODS, POPULATIONS];
   const pos = count(POS, text), neg = count(NEG, text);
-  const k = neg > pos ? 'c' : pos > neg ? 's' : kind;
-  const cue = k === 'c' ? NEG : POS;
+  const tone = neg > pos ? 'neg' : pos > neg ? 'pos' : '';
+  const k = !tone ? kind : (tone === 'neg') === claimNeg ? 's' : 'c';
+  const cue = tone === 'neg' || (!tone && (k === 'c') !== claimNeg) ? NEG : POS;
   const sentences = zh ? work.abstract.split(/(?<=[。！？；])/).filter((s) => s.length > 12) : work.abstract.split(/(?<=[.!?])\s+/).filter((s) => s.length > 30);
   const hit = sentences.filter((s) => { cue.lastIndex = 0; return cue.test(s); }).pop() || sentences[sentences.length - 1] || work.abstract;
   const kws = keywords.filter((x) => typeof x === 'string' && x.trim());
@@ -339,36 +490,69 @@ export function classifyWork(work, kind, keywords = []) {
   };
 }
 
-// queries／keywords：英文查詢與英文關鍵字（國際文獻）；zhQueries／keywordsZh：中文查詢與中文關鍵字（中文文獻，OpenAlex 的 language:zh）。
-// 兩邊至少要有一邊。每一輪最多回傳 10 篇：國際文獻最多 6 篇、中文文獻最多 4 篇（一邊不足時由另一邊補）。
-export async function searchEvidence({ queries, kind, keywords, excludeIds, zhQueries, keywordsZh }, fetchImpl = fetch) {
-  const en = clampQueries(queries), zh = clampQueries(zhQueries);
+// queries／core／scope：buildQueries 的輸出（英文，國際文獻）；zhQueries／keywordsZh：中文查詢與中文關鍵字（中文文獻）。
+// 兩邊至少要有一邊。流程：查詢（只比對標題與摘要）→ 丟掉沒有提到全部主題詞的 → 依相關度排序 → 每一輪最多 10 篇（中文最多 4 篇）。
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+export async function searchEvidence({ queries, kind, keywords, core, scope, excludeIds, zhQueries, keywordsZh, coreZh, claimNeg = false }, fetchImpl = fetch) {
+  const en = clampQueries(queries, 300), zh = clampQueries(zhQueries);
   if (!en.length && !zh.length) throw new Error('沒有可用的搜尋關鍵字，請先在上一步新增關鍵字。');
-  const run = (q, opts) => async () => {
+  const run = async (q, opts) => {
     const res = await fetchImpl(openAlexUrl(q, opts));
     if (!res.ok) throw new Error(`OpenAlex HTTP ${res.status}`);
     const json = await res.json();
     return (Array.isArray(json.results) ? json.results : []).map((w) => normalizeWork(w, q)).filter(Boolean);
   };
-  const jobs = [...en.map((q) => ({ zh: false, go: run(q) })), ...zh.map((q) => ({ zh: true, go: run(q, { lang: 'zh', fromYear: 2015 }) }))];
-  const settled = await Promise.allSettled(jobs.map((j) => j.go()));
-  if (settled.every((s) => s.status === 'rejected')) throw new Error('無法連線到文獻資料庫（OpenAlex），請檢查網路後再試。');
-  // OpenAlex 對中文的比對很寬鬆（常回傳只沾到一個詞、甚至是日文的文獻），所以中文結果要再檢查一次：
-  // 標題＋摘要裡至少要出現兩個中文關鍵字（只有一個關鍵字時就一個），而且不能含日文假名。
-  const zhKeys = (Array.isArray(keywordsZh) ? keywordsZh : []).filter(hasZh).slice(0, 3);
-  const relevantZh = (w) => {
+  const coreEn = Array.isArray(core) && core.length ? core : (Array.isArray(keywords) ? keywords : []).slice(0, 2);
+  const scopeEn = Array.isArray(scope) ? scope : [];
+  const jobs = [...en.map((q) => ({ zh: false, q, opts: { tiab: true, perPage: 15 } })), ...zh.map((q) => ({ zh: true, q, opts: { lang: 'zh', fromYear: 2015 } }))];
+  const wait = (ms) => pause(fetchImpl === fetch ? ms : 0);
+  // 一條一條查、中間稍微停一下：這是免費的公開服務，不要同時灌好幾個請求。
+  // OpenAlex 有每日額度，所以第一條英文查詢就找到夠多切題的文獻時，第二條就不查了。
+  const settled = [];
+  let enough = false;
+  for (const [i, job] of jobs.entries()) {
+    if (!job.zh && enough) { settled.push({ ok: true, value: [] }); continue; }
+    if (i) await wait(350);
+    const result = await run(job.q, job.opts).then((value) => ({ ok: true, value }), () => ({ ok: false, value: [] }));
+    settled.push(result);
+    if (!job.zh && dedupeWorks(result.value, excludeIds).filter((w) => relevance(w, coreEn, scopeEn).ok).length >= 10) enough = true;
+  }
+  // 英文查詢全部失敗（多半是 OpenAlex 今天的額度用完了）→ 改查 Crossref
+  let fallback = false;
+  if (en.length && jobs.every((j, i) => j.zh || !settled[i].ok)) {
+    for (const [i, q] of en.slice(0, 2).entries()) {
+      if (i) await wait(1100);
+      const value = await fetchImpl(crossrefUrl(q)).then(async (res) => {
+        if (!res.ok) throw new Error(`Crossref HTTP ${res.status}`);
+        return ((await res.json()).message?.items || []).map((it) => normalizeCrossref(it, q)).filter(Boolean);
+      }).then((v) => v, () => null);
+      if (value) { fallback = true; jobs.push({ zh: false, q }); settled.push({ ok: true, value }); }
+    }
+  }
+  if (settled.every((s) => !s.ok)) throw new Error('無法連線到文獻資料庫（OpenAlex 與 Crossref 都沒有回應），請檢查網路後再試。');
+  // 中文：OpenAlex 對中文的比對很寬鬆，所以自己再檢查一次——每個中文主題詞都要出現在標題或摘要，
+  // 而且至少有一個出現在標題（只在摘要裡順帶提到的通常不是在研究這個主題）；含日文假名的不要。
+  const zhKeys = (Array.isArray(keywordsZh) ? keywordsZh : []).filter(hasZh).slice(0, Math.min(3, Math.max(1, coreZh || 2)));
+  const zhScore = (w) => {
     const text = w.title + w.abstract;
-    return !/[぀-ヿ]/.test(text) && zhKeys.filter((k) => text.includes(k)).length >= Math.min(2, zhKeys.length);
+    if (/[぀-ヿ]/.test(text) || !zhKeys.length) return -1;
+    const inTitle = zhKeys.filter((k) => w.title.includes(k)).length;
+    return zhKeys.every((k) => text.includes(k)) && inTitle ? zhKeys.length + inTitle : -1;
   };
-  const found = (wantZh) => settled.flatMap((s, i) => (s.status === 'fulfilled' && jobs[i].zh === wantZh ? (wantZh ? s.value.filter(relevantZh) : s.value) : []));
-  const all = dedupeWorks([...found(false), ...found(true)], excludeIds);
-  const isZhWork = (w) => found(true).includes(w);
-  const zhPick = all.filter(isZhWork).slice(0, 4), enPick = all.filter((w) => !isZhWork(w)).slice(0, 10 - zhPick.length);
-  const works = [...enPick, ...all.filter(isZhWork).slice(0, 10 - enPick.length)];
-  return {
-    evidence: works.map((w) => classifyWork(w, kind, isZhWork(w) ? keywordsZh || [] : keywords || [])),
-    queries: [...en, ...zh], scanned: works.length,
-  };
+  // 同一篇論文有時會以不同編號出現兩次（預印本與正式版），標題一樣的只留一篇
+  const byTitle = (list) => { const seen = new Set(); return list.filter((w) => { const t = w.title.toLowerCase().replace(/[^a-z0-9一-鿿]/g, ''); return seen.has(t) ? false : seen.add(t); }); };
+  // 被撤稿的論文不要
+  const pool = (wantZh) => byTitle(dedupeWorks(settled.flatMap((s, i) => (jobs[i].zh === wantZh ? s.value : [])), excludeIds)).filter((w) => !/\bretracted\b|撤稿/i.test(w.title));
+  // 每一輪的第一條查詢最貼近這一輪要找的方向（例如統整性研究、負面結果），它找到的文獻排前面
+  const bonus = (w) => (w.q === en[0] ? 1.5 : 0);
+  const enRanked = pool(false).map((w) => ({ w, r: relevance(w, coreEn, scopeEn) })).filter((x) => x.r.ok).sort((a, b) => b.r.score + bonus(b.w) - a.r.score - bonus(a.w));
+  const zhRanked = pool(true).map((w) => ({ w, n: zhScore(w) })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
+  const zhPick = zhRanked.slice(0, 4), enPick = enRanked.slice(0, 10 - zhPick.length);
+  const evidence = [
+    ...enPick.map(({ w, r }) => ({ ...classifyWork(w, kind, [...coreEn, ...scopeEn], claimNeg), src: w.src || 'OpenAlex', sc: `主題詞 ${r.coreHit}／${coreEn.length}（標題 ${r.inTitle}）`, d: r.inTitle === coreEn.length ? '直接' : '間接', rel: r.inTitle === coreEn.length ? '高' : '中' })),
+    ...zhPick.map(({ w }) => ({ ...classifyWork(w, kind, zhKeys, claimNeg), rel: zhKeys.every((k) => w.title.includes(k)) ? '高' : '中' })),
+  ];
+  return { evidence, queries: [...en, ...zh], scanned: evidence.length, fallback, dropped: pool(false).length - enRanked.length + pool(true).length - zhRanked.length };
 }
 
 // ---------------- 證據摘要（Level 3）----------------

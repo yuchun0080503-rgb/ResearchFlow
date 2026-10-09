@@ -64,11 +64,12 @@ export async function proposeQuestion(projectId, { items, answers, ownQuestion }
 // mode：'procon' 正反例證／'claim' 主張論證 → {evidence, held, queries, scanned}
 // 主張論證模式的一般搜尋不提供反面例證：初步分類為「反向／限制」的文獻放在 held（先保留、不顯示），不放進 evidence。
 // keywords 是英文關鍵字（搜尋國際文獻），keywordsZh 是中文關鍵字（直接搜尋中文文獻）；兩者至少要有一個。
-export async function searchEvidence(projectId, { keywords, keywordsZh, round, excludeIds, mode }) {
+// coreCount：keywords 的前幾個是主題詞（每篇結果的標題或摘要都必須提到），其餘是用來縮小範圍的範圍詞。
+// claimNeg：主張本身是負面的（「…會變差」）——這時發現負面結果的研究算支持。
+export async function searchEvidence(projectId, { keywords, keywordsZh, coreCount, coreZh, claimNeg, round, excludeIds, mode }) {
   const uid = await guard(projectId, 'searchEvidence');
-  const { kind, queries } = agent.buildQueries(keywords, round, mode);
-  const zhQueries = agent.buildQueriesZh(keywordsZh, round, mode);
-  const out = await agent.searchEvidence({ queries, kind, keywords, excludeIds, zhQueries, keywordsZh });
+  const zhQueries = agent.buildQueriesZh(keywordsZh, round, mode, coreZh);
+  const out = await agent.searchRelaxed({ keywords, coreCount, round, mode, excludeIds, zhQueries, keywordsZh, coreZh, claimNeg });
   const sup = out.evidence.filter((e) => e.k === 's').length;
   if (mode === 'claim' && round !== 'counter') {
     const held = out.evidence.filter((e) => e.k !== 's');

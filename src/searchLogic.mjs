@@ -9,20 +9,21 @@ const MAX_QUERY_LEN = 120;
 const MAX_ABSTRACT_LEN = 1200;
 export const PER_QUERY = 5;
 
-export function clampQueries(queries) {
+export function clampQueries(queries, maxLen = MAX_QUERY_LEN) {
   const seen = new Set();
   return (Array.isArray(queries) ? queries : [])
     .filter((q) => typeof q === 'string' && q.trim())
-    .map((q) => q.trim().replace(/\s+/g, ' ').slice(0, MAX_QUERY_LEN))
+    .map((q) => q.trim().replace(/\s+/g, ' ').slice(0, maxLen))
     .filter((q) => (seen.has(q.toLowerCase()) ? false : seen.add(q.toLowerCase())))
     .slice(0, MAX_QUERIES);
 }
 
+// tiab：query 是布林查詢，只比對標題與摘要（比全文搜尋精準得多）。
 // lang：只找某個語言的文獻（例如 'zh'）。OpenAlex 的搜尋本身不限語言，中文關鍵字可以直接查到中文期刊論文。
-export function openAlexUrl(query, { fromYear = 2020, perPage = PER_QUERY, mailto = '', lang = '' } = {}) {
+export function openAlexUrl(query, { fromYear = 2020, perPage = PER_QUERY, mailto = '', lang = '', tiab = false } = {}) {
   const params = new URLSearchParams({
-    search: query,
-    filter: `from_publication_date:${fromYear}-01-01,has_abstract:true,type:article${lang ? `,language:${lang}` : ''}`,
+    ...(tiab ? {} : { search: query }),
+    filter: `from_publication_date:${fromYear}-01-01,has_abstract:true,type:article${lang ? `,language:${lang}` : ''}${tiab ? `,title_and_abstract.search:${query.replace(/,/g, ' ')}` : ''}`,
     'per-page': String(perPage),
     select: 'id,doi,display_name,publication_year,authorships,primary_location,abstract_inverted_index',
   });
@@ -76,4 +77,43 @@ export function dedupeWorks(works, excludeIds = []) {
     out.push(w);
   }
   return out;
+}
+
+// ---------------- Crossref（備援來源）----------------
+// OpenAlex 對沒有金鑰的使用者有每日額度（同一個網路位址共用，整個班級在同一個校園網路時很快會用完）。
+// 額度用完或連不上時改查 Crossref：一樣免費、不需要金鑰、允許瀏覽器直接呼叫，沒有每日額度（每秒一次）。
+// Crossref 不支援布林查詢，所以把布林式攤平成一串詞送出，找回來之後一樣要通過主題詞的相關度檢查。
+// 文件：https://api.crossref.org/swagger-ui/index.html
+
+export function crossrefUrl(boolQueryText, { fromYear = 2020, rows = 20 } = {}) {
+  const flat = String(boolQueryText).replace(/[()"]/g, ' ').replace(/\b(AND|OR)\b/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+  const params = new URLSearchParams({
+    'query.bibliographic': flat,
+    filter: `from-pub-date:${fromYear}-01-01,type:journal-article,has-abstract:true`,
+    rows: String(rows),
+    select: 'DOI,title,abstract,issued,author,container-title',
+  });
+  return `https://api.crossref.org/works?${params}`;
+}
+
+// Crossref 的一筆資料 → 跟 normalizeWork 相同的格式。摘要是 JATS XML，要把標籤拿掉。
+export function normalizeCrossref(item, query) {
+  if (!item || typeof item !== 'object' || typeof item.DOI !== 'string') return null;
+  const title = (Array.isArray(item.title) ? item.title[0] : '') || '';
+  const abstract = String(item.abstract || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/^\s*abstract\s*/i, '').trim().slice(0, MAX_ABSTRACT_LEN);
+  if (!title.trim() || !abstract) return null;
+  const doi = `https://doi.org/${item.DOI}`;
+  const year = item.issued?.['date-parts']?.[0]?.[0];
+  return {
+    id: doi,
+    title: title.replace(/<[^>]+>/g, '').trim().slice(0, 300),
+    year: Number.isInteger(year) ? year : null,
+    doi,
+    url: doi,
+    authors: (Array.isArray(item.author) ? item.author : []).map((a) => [a?.given, a?.family].filter(Boolean).join(' ')).filter(Boolean).slice(0, 3),
+    venue: (Array.isArray(item['container-title']) ? item['container-title'][0] : '') || '',
+    abstract,
+    q: query,
+    src: 'Crossref',
+  };
 }
