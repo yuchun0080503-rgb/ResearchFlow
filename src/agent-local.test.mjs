@@ -77,7 +77,7 @@ test('summarizeEvidence：只報數量與標題，並提醒結論由小組判斷
   assert.match(s, /結論請由小組自行判斷/);
 });
 
-import { suggestMode, claimQuestion, evidenceLevel } from './agent-local.mjs';
+import { suggestMode, claimQuestion, evidenceLevel, claimIssues } from './agent-local.mjs';
 
 test('suggestMode：題目有正反／利弊／影響等字眼建議正反例證，其餘建議主張論證', () => {
   assert.equal(suggestMode('社群媒體對青少年的利弊').mode, 'procon');
@@ -86,11 +86,13 @@ test('suggestMode：題目有正反／利弊／影響等字眼建議正反例證
   assert.equal(suggestMode('').mode, 'claim');
 });
 
-test('buildQueries：主張論證模式依序找直接證據、統整性研究、限制與反例', () => {
+test('buildQueries：主張論證模式依序找直接證據、統整性研究、成立條件；反面例證要另外要求', () => {
   const kw = ['sleep', 'academic performance'];
   assert.deepEqual(buildQueries(kw, 0, 'claim'), { kind: 's', queries: ['sleep academic performance', 'sleep academic performance evidence'] });
   assert.match(buildQueries(kw, 1, 'claim').queries.join('|'), /systematic review.*meta-analysis/);
-  assert.equal(buildQueries(kw, 2, 'claim').kind, 'c');
+  assert.equal(buildQueries(kw, 2, 'claim').kind, 's'); // 第 3 輪找成立條件與機制，仍然是幫主張找證據
+  assert.match(buildQueries(kw, 2, 'claim').queries[0], /mechanism/);
+  assert.deepEqual([buildQueries(kw, 'counter', 'claim').kind, buildQueries(kw, 'counter', 'claim').queries.length], ['c', 2]); // 反面例證只有學生要求時才找
   assert.equal(buildQueries(kw, 1).kind, 'c'); // 沒指定模式＝正反例證：第 2 輪找反向
 });
 
@@ -99,4 +101,22 @@ test('claimQuestion／evidenceLevel：主張轉成研究問題；回顧與實驗
   assert.deepEqual(['文獻回顧', '實驗研究', '問卷調查', '質性研究', '摘要未說明'].map(evidenceLevel), ['高', '高', '中', '低', '不明']);
   const w = { id: 'W1', title: 'A meta-analysis of sleep', year: 2024, doi: 'https://doi.org/1', url: 'https://doi.org/1', authors: [], venue: '', abstract: 'This systematic review found that sleep improved grades in many studies overall.', q: 'q' };
   assert.equal(classifyWork(w, 's').lv, '高');
+});
+
+test('claimIssues：從主張的寫法與證據的組成列出潛在問題，不需要反面例證', () => {
+  const ev = [
+    { lv: '中', d: '直接', p: '大學生', v: true }, { lv: '不明', d: '間接', p: '大學生', v: false }, { lv: '中', d: '間接', p: '摘要未說明', v: true },
+  ];
+  const issues = claimIssues('睡眠不足一定會降低成績', ev, 2).join('\n');
+  assert.match(issues, /「一定」/);
+  assert.match(issues, /因果主張/);
+  assert.match(issues, /沒有說明適用的對象/);
+  assert.match(issues, /沒有證據力高的研究/);
+  assert.match(issues, /只有 1／3 筆/);
+  assert.match(issues, /幾乎都是大學生/);
+  assert.match(issues, /1 筆證據的來源還沒有驗證/);
+  assert.match(issues, /另外遇到 2 篇/);
+  const good = claimIssues('大學生的睡眠時間與學業成績有關', [{ lv: '高', d: '直接', p: '大學生', v: true }, { lv: '高', d: '直接', p: '中學生', v: true }], 0);
+  assert.deepEqual(good, []);
+  assert.match(claimIssues('x', [], 0).join(''), /還沒有找到支持/);
 });

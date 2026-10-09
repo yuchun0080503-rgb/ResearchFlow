@@ -129,7 +129,9 @@ export function proposeQuestion({ items, answers, ownQuestion }) {
 
 // ---------------- 查證模式 ----------------
 // procon「正反例證模式」：題目本身有正反兩面（利弊、爭議、影響好壞）——刻意同時找支持與反向的證據，要求兩邊平衡。
-// claim 「主張論證模式」：報告是在論證一個主張——針對這一個主張做深度查證：直接證據 → 統整性研究 → 限制與成立條件。
+// claim 「主張論證模式」：報告是在論證一個主張——只幫這個主張找證據並分出證據力：直接證據 → 統整性研究 → 成立條件與機制。
+//        這個模式「不主動提供反面例證」：搜尋到看法可能不同的文獻先保留不顯示，改成列出「目前主張下可能有的潛在問題」，
+//        學生說需要時才去找反面例證當參考（claimIssues／buildQueries 的 'counter'）。
 export const MODES = ['procon', 'claim'];
 const PROCON_CUES = /正反|利弊|優缺|優點.*缺點|好處.*壞處|贊成|反對|爭議|辯論|兩面|是否應該|該不該|應不應該|比較|vs|VS|影響/;
 
@@ -145,19 +147,47 @@ export function suggestMode(text) {
     : { mode: 'claim', reason: '題目看起來是在說明或論證一個主題，不一定有明確的正反兩方；針對你們的主張逐一深入查證會比較實用。' };
 }
 
+/**
+ * 主張論證模式：列出「目前主張下可能有的潛在問題」。只看主張的寫法與目前手上證據的組成，不去找反面例證。
+ * @param {string} claim 要論證的主張
+ * @param {object[]} evidence 目前支持主張的證據（Evidence Map 的項目）
+ * @param {number} heldCount 搜尋時遇到、但因為看法可能不同而先保留不顯示的文獻數
+ * @returns {string[]}
+ */
+export function claimIssues(claim, evidence, heldCount = 0) {
+  const text = String(claim || ''), ev = Array.isArray(evidence) ? evidence : [], out = [];
+  const absolute = text.match(/一定|必然|絕對|所有|全部|都會|都能|完全|永遠|從不|唯一|最/);
+  if (absolute) out.push(`主張用了「${absolute[0]}」這種沒有例外的說法，只要出現一個例外就站不住，可以考慮加上適用範圍。`);
+  if (/導致|造成|使得|讓|提高|提升|降低|減少|增加|改善|影響|有助於|幫助/.test(text)) out.push('這是一個因果主張。問卷或訪談只能說明「有關聯」，要證明因果需要實驗或長期追蹤的研究。');
+  if (!DIMENSIONS[0].cues.test(text)) out.push('主張沒有說明適用的對象，讀者可能會質疑它是不是對每一種人都成立。');
+  if (ev.length) {
+    const high = ev.filter((e) => e.lv === '高').length, direct = ev.filter((e) => e.d === '直接').length;
+    if (!high) out.push('目前的證據裡沒有證據力高的研究（系統性回顧或實驗），論證的基礎還不夠穩。');
+    if (direct < Math.ceil(ev.length / 2)) out.push(`只有 ${direct}／${ev.length} 筆證據跟主張直接相符，其餘的研究對象或情境不完全一樣。`);
+    const groups = new Set(ev.map((e) => e.p).filter((x) => x && x !== '摘要未說明'));
+    if (groups.size === 1) out.push(`證據的研究對象幾乎都是${[...groups][0]}，不一定能推論到其他族群。`);
+    const unverified = ev.filter((e) => !e.v).length;
+    if (unverified) out.push(`有 ${unverified} 筆證據的來源還沒有驗證。`);
+  } else out.push('目前還沒有找到支持這個主張的證據。');
+  if (heldCount) out.push(`搜尋時另外遇到 ${heldCount} 篇看法可能不同、或指出限制的研究（目前沒有顯示）。`);
+  return out;
+}
+
 // 把「要查證的主張」寫成研究問題的草案
 export const claimQuestion = (claim) => `「${String(claim || '').trim().slice(0, 80)}」這個主張成立嗎？在什麼條件下成立，又有哪些限制？`;
 
 // 每一輪要查什麼。一律用「小組目前確認的關鍵字」組成，所以學生在介面上增刪關鍵字會直接改變搜尋結果。
 //   正反例證模式：第 1 輪找一般／支持方向，第 2 輪刻意找負面與限制，之後做探索性補搜。
-//   主張論證模式：第 1 輪找直接證據，第 2 輪找統整性研究（系統性回顧、後設分析——證據力最高），第 3 輪找限制與反例。
+//   主張論證模式：第 1 輪找直接證據，第 2 輪找統整性研究（系統性回顧、後設分析——證據力最高），第 3 輪找成立條件與機制；
+//               round 傳 'counter' 才是找反面例證（只有學生看完潛在問題、表示需要時才會呼叫）。
 export function buildQueries(keywords, round, mode = 'procon') {
   const base = (Array.isArray(keywords) ? keywords : []).filter((k) => typeof k === 'string' && k.trim()).slice(0, 4).join(' ');
   if (!base) return { kind: 's', queries: [] };
   if (mode === 'claim') {
     if (round === 0) return { kind: 's', queries: [base, `${base} evidence`] };
     if (round === 1) return { kind: 's', queries: [`${base} systematic review`, `${base} meta-analysis`] };
-    return { kind: 'c', queries: [`${base} limitations`, `${base} null results criticism`] };
+    if (round === 'counter') return { kind: 'c', queries: [`${base} limitations`, `${base} criticism contrary evidence`] };
+    return { kind: 's', queries: [`${base} mechanism`, `${base} moderators conditions`] };
   }
   if (round === 0) return { kind: 's', queries: [base, `${base} benefits effectiveness`] };
   if (round === 1) return { kind: 'c', queries: [`${base} negative effects`, `${base} risks limitations`] };

@@ -60,14 +60,23 @@ export async function proposeQuestion(projectId, { items, answers, ownQuestion }
   return out;
 }
 
-// round：第幾輪（從 0 開始）；keywords：小組目前確認的關鍵字；mode：'procon' 正反例證／'claim' 主張論證 → {evidence, queries, scanned}
+// round：第幾輪（從 0 開始；主張論證模式傳 'counter' 代表學生要求的反面例證）；keywords：小組目前確認的關鍵字；
+// mode：'procon' 正反例證／'claim' 主張論證 → {evidence, held, queries, scanned}
+// 主張論證模式的一般搜尋不提供反面例證：初步分類為「反向／限制」的文獻放在 held（先保留、不顯示），不放進 evidence。
 export async function searchEvidence(projectId, { keywords, round, excludeIds, mode }) {
   const uid = await guard(projectId, 'searchEvidence');
   const { kind, queries } = agent.buildQueries(keywords, round, mode);
   const out = await agent.searchEvidence({ queries, kind, keywords, excludeIds });
   const sup = out.evidence.filter((e) => e.k === 's').length;
-  await agentLog(projectId, uid, `${mode === 'claim' ? '主張論證模式' : '正反例證模式'}第 ${round + 1} 輪搜尋 OpenAlex：找到 ${out.scanned} 篇，初步分類為支持 ${sup} 篇、反向／限制 ${out.scanned - sup} 篇（待小組確認）。`);
-  return out;
+  if (mode === 'claim' && round !== 'counter') {
+    const held = out.evidence.filter((e) => e.k !== 's');
+    await agentLog(projectId, uid, `主張論證模式第 ${round + 1} 輪搜尋 OpenAlex：找到 ${sup} 篇支持主張的文獻（待小組確認）；另有 ${held.length} 篇看法可能不同，先保留不顯示。`);
+    return { ...out, evidence: out.evidence.filter((e) => e.k === 's'), held };
+  }
+  await agentLog(projectId, uid, mode === 'claim'
+    ? `應學生要求搜尋反面例證（參考用）：找到 ${out.scanned} 篇，其中 ${out.scanned - sup} 篇初步分類為反向／限制。`
+    : `正反例證模式第 ${round + 1} 輪搜尋 OpenAlex：找到 ${out.scanned} 篇，初步分類為支持 ${sup} 篇、反向／限制 ${out.scanned - sup} 篇（待小組確認）。`);
+  return { ...out, held: [] };
 }
 
 export async function summarizeEvidence(projectId, { evidence }) {
