@@ -71,7 +71,7 @@ export function analyzeScope(rawItems) {
 const TERMS = [
   [/生成式\s*AI|生成式人工智慧|ChatGPT|大型語言模型|LLM/i, 'generative AI'],
   [/人工智慧|(?<![a-z])AI(?![a-z])/i, 'artificial intelligence'],
-  [/大學|undergraduate/i, 'university students'],
+  [/大學生?|大專生?|undergraduate/i, 'university students'],
   [/高中|國中|中學|國高中/, 'secondary school students'],
   [/國小|小學|學童|兒童/, 'primary school students'],
   [/研究生|碩士|博士/, 'graduate students'],
@@ -94,6 +94,70 @@ const TERMS = [
   [/睡眠/, 'sleep'],
   [/學習/, 'learning'],
 ];
+
+// 同一批詞，但保留中文原文：[{zh, en}]。中文那一半拿去搜尋中文文獻，英文那一半搜尋國際文獻。
+// 畫布上本來就用英文寫的詞 zh 留空。
+export function keywordPairs(text) {
+  const out = [];
+  for (const [re, en] of TERMS) {
+    const hit = String(text).match(re);
+    if (hit && !out.some((p) => p.en === en)) out.push({ zh: /[一-鿿]/.test(hit[0]) ? hit[0].replace(/\s+/g, '') : '', en });
+  }
+  for (const w of String(text).match(/[A-Za-z][A-Za-z-]{3,}/g) || []) {
+    const lw = w.toLowerCase();
+    if (!out.some((p) => p.en.toLowerCase().includes(lw)) && out.length < 8) out.push({ zh: '', en: lw });
+  }
+  const specific = out.some((p) => / students$/.test(p.en)), genAI = out.some((p) => p.en === 'generative AI');
+  return out.filter((p) => !(specific && p.en === 'students') && !(genAI && p.en === 'artificial intelligence')).slice(0, 8);
+}
+
+// 從一段中文（畫布上的論點、要論證的主張）抽出可以當關鍵字的詞。
+// 沒有斷詞工具，所以用詞庫做「最長詞優先」的比對：rankOf(詞) 回傳它在常用詞表裡的名次（不在表裡回傳 undefined）。
+// 詞表最前面 DOMAIN_WORDS 個是手動加入的研究常用詞（一定保留）；接在後面的 COMMON_WORDS 個是最常見的詞
+// （多半是「可能」「因為」這類）不要；下面的功能詞也不要。剩下的依出現順序取前幾個。
+const DOMAIN_WORDS = 104, COMMON_WORDS = 150;
+const STOP_ZH = new Set('可能 因為 所以 但是 而且 如果 雖然 或者 以及 還是 就是 不是 沒有 這個 那個 這些 那些 我們 他們 你們 自己 大家 什麼 怎麼 為什麼 是否 需要 應該 可以 能夠 已經 正在 比較 非常 真的 確認 產生 造成 導致 使得 提高 提升 降低 減少 增加 改善 變得 變差 變好 使用 進行 認為 覺得 發現 表示 研究 問題 影響 結果 情況 方面 部分 時候 之後 之前 以後 以前 目前 現在 很多 一些 一個 一定 一樣 不同 相關 關係 幫助 有幫助 重要 主要 一般 其他 例如 包括 對於 關於 根據 透過 經過'.split(' '));
+export function extractZhTerms(text, rankOf, max = 4) {
+  const src = String(text || ''), out = [];
+  for (const run of src.match(/[一-鿿]+/g) || []) {
+    for (let i = 0; i < run.length;) {
+      let word = '';
+      for (let len = Math.min(4, run.length - i); len >= 2; len--) {
+        const cand = run.slice(i, i + len);
+        if (rankOf(cand) !== undefined) { word = cand; break; }
+      }
+      if (!word) { i++; continue; }
+      i += word.length;
+      const rank = rankOf(word);
+      if (!STOP_ZH.has(word) && (rank < DOMAIN_WORDS || rank >= DOMAIN_WORDS + COMMON_WORDS) && !out.includes(word)) out.push(word);
+    }
+  }
+  return out.slice(0, max);
+}
+
+// ---------------- 中文關鍵字 → 英文 ----------------
+// 順序：內建對照表（研究常用詞）→ 維基百科的中英條目對應（學術名詞最準）→ MyMemory 免費翻譯服務（一般詞句）。
+// 三者都不需要金鑰。全部失敗時回傳空字串，這個關鍵字就只用來搜尋中文文獻。
+const hasZh = (s) => /[一-鿿]/.test(s);
+export async function translateTerm(term, fetchImpl = fetch) {
+  const text = String(term || '').trim();
+  if (!text || !hasZh(text)) return { en: text, via: '' };
+  const known = TERMS.find(([re]) => { const m = text.match(re); return m && m[0].length >= text.replace(/\s+/g, '').length - 1; });
+  if (known) return { en: known[1], via: '內建對照表' };
+  try {
+    const url = 'https://zh.wikipedia.org/w/api.php?' + new URLSearchParams({ action: 'query', titles: text, prop: 'langlinks', lllang: 'en', redirects: '1', converttitles: '1', format: 'json', origin: '*' });
+    const res = await fetchImpl(url);
+    const page = res.ok ? Object.values((await res.json()).query?.pages || {})[0] : null;
+    const title = page?.langlinks?.[0]?.['*'];
+    if (title) return { en: title.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase(), via: '維基百科條目對應' };
+  } catch { /* 換下一個方法 */ }
+  try {
+    const res = await fetchImpl('https://api.mymemory.translated.net/get?' + new URLSearchParams({ q: text, langpair: 'zh-TW|en' }));
+    const out = res.ok ? (await res.json()).responseData?.translatedText : '';
+    if (typeof out === 'string' && out.trim() && !hasZh(out) && !/MYMEMORY WARNING|QUERY LENGTH/i.test(out)) return { en: out.trim().toLowerCase().slice(0, 80), via: '機器翻譯' };
+  } catch { /* 都失敗就只搜中文 */ }
+  return { en: '', via: '' };
+}
 
 export function keywordsFrom(text) {
   const out = [];
@@ -119,12 +183,14 @@ export function proposeQuestion({ items, answers, ownQuestion }) {
     `關於「${topic}」：${byKey.who ? byKey.who : '研究對象'}${byKey.ctx ? `在${byKey.ctx}情境中` : ''}，` +
       `${byKey.out ? `${byKey.out}會受到什麼影響` : '會受到什麼影響'}？同時有哪些限制或反向結果？`;
   const source = [own, ...list.map((it) => it.text), ...ans.map((a) => a.answer)].join('\n');
-  const keywords = keywordsFrom(source);
+  // 關鍵字清單以使用者的語言呈現：有中文原文就顯示中文，英文對照放在 kwEn（搜尋國際文獻時用）
+  const pairs = keywordPairs(source), kwEn = {};
+  const keywords = pairs.map((p) => { if (p.zh) kwEn[p.zh] = p.en; return p.zh || p.en; });
   const strategy = [
     ['研究對象', byKey.who], ['研究情境', byKey.ctx], ['主要結果', byKey.out],
   ].filter((r) => r[1]).map(([label, value]) => ({ label, value }));
-  strategy.push({ label: '時間範圍', value: '2020 年至今' }, { label: '資料來源', value: 'OpenAlex 學術資料庫（有摘要的期刊論文）' });
-  return { researchQuestion, keywords, strategy };
+  strategy.push({ label: '時間範圍', value: '國際文獻 2020 年至今；中文文獻 2015 年至今' }, { label: '資料來源', value: 'OpenAlex 學術資料庫（有摘要的期刊論文，含中文與英文）' });
+  return { researchQuestion, keywords, kwEn, strategy };
 }
 
 // ---------------- 查證模式 ----------------
@@ -194,6 +260,21 @@ export function buildQueries(keywords, round, mode = 'procon') {
   return { kind: 'c', queries: [`${base} challenges concerns`, `${base} systematic review`] };
 }
 
+// 中文文獻的查詢：直接用中文關鍵字（前 3 個），各輪加上的方向用語跟英文版對應。
+export function buildQueriesZh(keywordsZh, round, mode = 'procon') {
+  const base = (Array.isArray(keywordsZh) ? keywordsZh : []).filter((k) => typeof k === 'string' && hasZh(k)).slice(0, 3).join(' ');
+  if (!base) return [];
+  if (mode === 'claim') {
+    if (round === 0) return [base];
+    if (round === 1) return [`${base} 後設分析`, `${base} 文獻回顧`];
+    if (round === 'counter') return [`${base} 限制 批評`];
+    return [`${base} 影響因素`];
+  }
+  if (round === 0) return [base];
+  if (round === 1) return [`${base} 負面影響`, `${base} 風險`];
+  return [`${base} 問題 挑戰`];
+}
+
 // ---------------- 證據初步分類 ----------------
 
 const POSITIVE = /\b(improv\w*|enhanc\w*|increas\w*|benefi\w*|effective\w*|positive\w*|higher|gain\w*|promot\w*|facilitat\w*|support\w*|better)\b/gi;
@@ -212,6 +293,23 @@ const POPULATIONS = [
   [/primary school|elementary|children/i, '小學生'],
   [/teacher|educator|instructor/i, '教師'],
 ];
+// 中文摘要用的同一組線索
+const POSITIVE_ZH = /提升|提高|改善|增進|促進|有助|助益|正向|正面|有效|顯著優於|顯著高於/g;
+const NEGATIVE_ZH = /降低|下降|減少|負面|負向|風險|危害|依賴|成癮|沉迷|焦慮|限制|阻礙|不利|困境|疑慮|隱憂|抄襲|作弊/g;
+const METHODS_ZH = [
+  [/後設分析|統合分析|系統性回顧|文獻回顧|文獻分析/, '文獻回顧'],
+  [/準實驗|實驗組|實驗法|實驗研究|實驗設計/, '實驗研究'],
+  [/縱貫|追蹤研究|長期追蹤/, '縱貫研究'],
+  [/問卷|調查法|調查研究|量表/, '問卷調查'],
+  [/訪談|質性|焦點團體|個案研究/, '質性研究'],
+];
+const POPULATIONS_ZH = [
+  [/大學生|大專|技專校院|高等教育/, '大學生'],
+  [/研究生|碩士生|博士生/, '研究生'],
+  [/高中|國中|中學|青少年/, '中學生'],
+  [/國小|小學|學童|兒童|幼兒/, '小學生'],
+  [/教師|師資生|教育人員/, '教師'],
+];
 const firstMatch = (table, text) => (table.find(([re]) => re.test(text)) || [null, '摘要未說明'])[1];
 // 證據力：統整多篇研究的回顧最高，其次是有對照的實驗與長期追蹤，問卷與訪談較低；方法不明就標「不明」。
 const LEVELS = { 文獻回顧: '高', 實驗研究: '高', 縱貫研究: '中', 問卷調查: '中', 質性研究: '低' };
@@ -221,16 +319,18 @@ const count = (re, text) => (text.match(re) || []).length;
 // work：searchLogic.normalizeWork 的輸出；kind：這篇是哪個方向的查詢找到的（'s'／'c'），正負用語一樣多時用它決定。
 export function classifyWork(work, kind, keywords = []) {
   const text = `${work.title}. ${work.abstract}`;
-  const pos = count(POSITIVE, text), neg = count(NEGATIVE, text);
+  const zh = hasZh(work.title) || (work.abstract.match(/[一-鿿]/g) || []).length > work.abstract.length / 4; // 中文文獻用中文的線索詞
+  const [POS, NEG, METHOD, POPULATION] = zh ? [POSITIVE_ZH, NEGATIVE_ZH, METHODS_ZH, POPULATIONS_ZH] : [POSITIVE, NEGATIVE, METHODS, POPULATIONS];
+  const pos = count(POS, text), neg = count(NEG, text);
   const k = neg > pos ? 'c' : pos > neg ? 's' : kind;
-  const cue = k === 'c' ? NEGATIVE : POSITIVE;
-  const sentences = work.abstract.split(/(?<=[.!?])\s+/).filter((s) => s.length > 30);
+  const cue = k === 'c' ? NEG : POS;
+  const sentences = zh ? work.abstract.split(/(?<=[。！？；])/).filter((s) => s.length > 12) : work.abstract.split(/(?<=[.!?])\s+/).filter((s) => s.length > 30);
   const hit = sentences.filter((s) => { cue.lastIndex = 0; return cue.test(s); }).pop() || sentences[sentences.length - 1] || work.abstract;
   const kws = keywords.filter((x) => typeof x === 'string' && x.trim());
   const matched = kws.filter((kw) => text.toLowerCase().includes(kw.toLowerCase())).length;
   return {
     id: work.id, k, t: work.title, y: work.year || '年份不明', au: work.authors.join(', '), vn: work.venue, url: work.url,
-    p: firstMatch(POPULATIONS, text), m: firstMatch(METHODS, text), lv: evidenceLevel(firstMatch(METHODS, text)),
+    p: firstMatch(POPULATION, text), m: firstMatch(METHOD, text), lv: evidenceLevel(firstMatch(METHOD, text)), lang: zh ? 'zh' : 'en',
     f: hit.slice(0, 280), l: '尚未判讀：請閱讀原文後由小組補上', c: '', q: work.q,
     sc: kws.length ? `關鍵字符合 ${matched}／${kws.length}` : '未比對',
     d: kws.length && matched >= Math.ceil(kws.length / 2) ? '直接' : '間接',
@@ -239,18 +339,36 @@ export function classifyWork(work, kind, keywords = []) {
   };
 }
 
-export async function searchEvidence({ queries, kind, keywords, excludeIds }, fetchImpl = fetch) {
-  const qs = clampQueries(queries);
-  if (!qs.length) throw new Error('沒有可用的搜尋關鍵字，請先在上一步新增英文關鍵字。');
-  const settled = await Promise.allSettled(qs.map(async (q) => {
-    const res = await fetchImpl(openAlexUrl(q));
+// queries／keywords：英文查詢與英文關鍵字（國際文獻）；zhQueries／keywordsZh：中文查詢與中文關鍵字（中文文獻，OpenAlex 的 language:zh）。
+// 兩邊至少要有一邊。每一輪最多回傳 10 篇：國際文獻最多 6 篇、中文文獻最多 4 篇（一邊不足時由另一邊補）。
+export async function searchEvidence({ queries, kind, keywords, excludeIds, zhQueries, keywordsZh }, fetchImpl = fetch) {
+  const en = clampQueries(queries), zh = clampQueries(zhQueries);
+  if (!en.length && !zh.length) throw new Error('沒有可用的搜尋關鍵字，請先在上一步新增關鍵字。');
+  const run = (q, opts) => async () => {
+    const res = await fetchImpl(openAlexUrl(q, opts));
     if (!res.ok) throw new Error(`OpenAlex HTTP ${res.status}`);
     const json = await res.json();
     return (Array.isArray(json.results) ? json.results : []).map((w) => normalizeWork(w, q)).filter(Boolean);
-  }));
+  };
+  const jobs = [...en.map((q) => ({ zh: false, go: run(q) })), ...zh.map((q) => ({ zh: true, go: run(q, { lang: 'zh', fromYear: 2015 }) }))];
+  const settled = await Promise.allSettled(jobs.map((j) => j.go()));
   if (settled.every((s) => s.status === 'rejected')) throw new Error('無法連線到文獻資料庫（OpenAlex），請檢查網路後再試。');
-  const works = dedupeWorks(settled.flatMap((s) => (s.status === 'fulfilled' ? s.value : [])), excludeIds).slice(0, 8);
-  return { evidence: works.map((w) => classifyWork(w, kind, keywords)), queries: qs, scanned: works.length };
+  // OpenAlex 對中文的比對很寬鬆（常回傳只沾到一個詞、甚至是日文的文獻），所以中文結果要再檢查一次：
+  // 標題＋摘要裡至少要出現兩個中文關鍵字（只有一個關鍵字時就一個），而且不能含日文假名。
+  const zhKeys = (Array.isArray(keywordsZh) ? keywordsZh : []).filter(hasZh).slice(0, 3);
+  const relevantZh = (w) => {
+    const text = w.title + w.abstract;
+    return !/[぀-ヿ]/.test(text) && zhKeys.filter((k) => text.includes(k)).length >= Math.min(2, zhKeys.length);
+  };
+  const found = (wantZh) => settled.flatMap((s, i) => (s.status === 'fulfilled' && jobs[i].zh === wantZh ? (wantZh ? s.value.filter(relevantZh) : s.value) : []));
+  const all = dedupeWorks([...found(false), ...found(true)], excludeIds);
+  const isZhWork = (w) => found(true).includes(w);
+  const zhPick = all.filter(isZhWork).slice(0, 4), enPick = all.filter((w) => !isZhWork(w)).slice(0, 10 - zhPick.length);
+  const works = [...enPick, ...all.filter(isZhWork).slice(0, 10 - enPick.length)];
+  return {
+    evidence: works.map((w) => classifyWork(w, kind, isZhWork(w) ? keywordsZh || [] : keywords || [])),
+    queries: [...en, ...zh], scanned: works.length,
+  };
 }
 
 // ---------------- 證據摘要（Level 3）----------------

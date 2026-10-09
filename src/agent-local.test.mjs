@@ -36,7 +36,7 @@ test('proposeQuestion：把回答套進問題；學生自己寫的問題原樣�
   const answers = [{ key: 'who', answer: '大學生' }, { key: 'ctx', answer: '自主學習' }, { key: 'out', answer: '批判思考' }];
   const r = proposeQuestion({ items: canvas, answers });
   assert.match(r.researchQuestion, /大學生在自主學習情境中，批判思考會受到什麼影響/);
-  assert.ok(r.keywords.includes('university students') && r.keywords.includes('critical thinking'));
+  assert.deepEqual([r.kwEn['大學生'], r.kwEn['批判思考']], ['university students', 'critical thinking']); // 關鍵字以中文呈現，英文對照在 kwEn
   assert.equal(proposeQuestion({ items: canvas, answers, ownQuestion: ' 我們的問題 ' }).researchQuestion, '我們的問題');
 });
 
@@ -119,4 +119,71 @@ test('claimIssues：從主張的寫法與證據的組成列出潛在問題，不
   const good = claimIssues('大學生的睡眠時間與學業成績有關', [{ lv: '高', d: '直接', p: '大學生', v: true }, { lv: '高', d: '直接', p: '中學生', v: true }], 0);
   assert.deepEqual(good, []);
   assert.match(claimIssues('x', [], 0).join(''), /還沒有找到支持/);
+});
+
+import { keywordPairs, translateTerm, buildQueriesZh } from './agent-local.mjs';
+
+test('keywordPairs：保留中文原文，並附上英文對照', () => {
+  assert.deepEqual(keywordPairs('大學生用生成式 AI 寫作 scaffolding'), [
+    { zh: '生成式AI', en: 'generative AI' }, { zh: '大學生', en: 'university students' }, { zh: '寫作', en: 'academic writing' }, { zh: '', en: 'scaffolding' },
+  ]);
+  const r = proposeQuestion({ items: [{ type: 'text', text: '睡眠不足會影響批判思考', tag: 'claim' }], answers: [] });
+  assert.deepEqual(r.keywords, ['批判思考', '睡眠']);
+  assert.deepEqual(r.kwEn, { 批判思考: 'critical thinking', 睡眠: 'sleep' });
+});
+
+test('translateTerm：內建對照表 → 維基百科條目對應 → 機器翻譯；英文原樣回傳；全部失敗回傳空字串', async () => {
+  const never = async () => { throw new Error('不應該連網'); };
+  assert.deepEqual(await translateTerm('批判思考', never), { en: 'critical thinking', via: '內建對照表' });
+  assert.deepEqual(await translateTerm('sleep', never), { en: 'sleep', via: '' });
+  const wiki = async (url) => ({ ok: true, json: async () => (url.includes('wikipedia') ? { query: { pages: { 1: { langlinks: [{ '*': 'Sleep deprivation (medicine)' }] } } } } : {}) });
+  assert.deepEqual(await translateTerm('睡眠剝奪', wiki), { en: 'sleep deprivation', via: '維基百科條目對應' });
+  const mt = async (url) => ({ ok: true, json: async () => (url.includes('wikipedia') ? { query: { pages: { '-1': {} } } } : { responseData: { translatedText: 'Night Owl Habit' } }) });
+  assert.deepEqual(await translateTerm('夜貓子習慣', mt), { en: 'night owl habit', via: '機器翻譯' });
+  assert.deepEqual(await translateTerm('夜貓子習慣', async () => ({ ok: false })), { en: '', via: '' });
+});
+
+test('buildQueriesZh：只用中文關鍵字（前 3 個），各模式各輪的方向跟英文版對應', () => {
+  const kw = ['睡眠', 'sleep', '學業成績', '大學生', '動機'];
+  assert.deepEqual(buildQueriesZh(kw, 0), ['睡眠 學業成績 大學生']);
+  assert.deepEqual(buildQueriesZh(kw, 1), ['睡眠 學業成績 大學生 負面影響', '睡眠 學業成績 大學生 風險']);
+  assert.match(buildQueriesZh(kw, 1, 'claim')[0], /後設分析/);
+  assert.match(buildQueriesZh(kw, 'counter', 'claim')[0], /限制/);
+  assert.deepEqual(buildQueriesZh(['sleep'], 0), []);
+});
+
+test('classifyWork：中文文獻用中文的線索詞判斷方向、方法與對象', () => {
+  const w = { id: 'Z1', title: '大學生睡眠品質與學業成就之關係', year: 2021, doi: 'https://doi.org/1', url: 'https://doi.org/1', authors: [], venue: '教育期刊', q: '睡眠 學業',
+    abstract: '本研究以問卷調查法探討大學生睡眠品質與學業成就之關係。結果顯示睡眠品質較佳者學業成就顯著高於睡眠品質不佳者；良好睡眠有助提升學習專注。' };
+  const e = classifyWork(w, 'c', ['睡眠', '學業']);
+  assert.deepEqual([e.k, e.m, e.p, e.lang, e.lv, e.sc], ['s', '問卷調查', '大學生', 'zh', '中', '關鍵字符合 2／2']);
+  assert.match(e.f, /有助提升/);
+});
+
+test('searchEvidence：英文與中文查詢一起跑，中文查詢帶 language:zh；只有中文關鍵字也能搜尋', async () => {
+  const urls = [];
+  const mk = (id, title, words) => ({ id, doi: 'https://doi.org/' + id, display_name: title, publication_year: 2022, authorships: [], abstract_inverted_index: Object.fromEntries(words.map((x, i) => [x, [i]])) });
+  const svc = async (url) => { urls.push(decodeURIComponent(url)); const zh = url.includes('language%3Azh');
+    return { ok: true, json: async () => ({ results: zh ? [mk('Z1', '中文論文', ['睡眠', '有助', '提升', '成績'])] : [mk('E1', 'English paper', ['sleep', 'improved', 'grades'])] }) }; };
+  const r = await searchEvidence({ queries: ['sleep grades'], zhQueries: ['睡眠 成績'], kind: 's', keywords: ['sleep'], keywordsZh: ['睡眠'] }, svc);
+  assert.deepEqual(r.evidence.map((e) => e.lang), ['en', 'zh']);
+  assert.deepEqual(r.queries, ['sleep grades', '睡眠 成績']);
+  assert.ok(urls.some((u) => u.includes('language:zh') && u.includes('2015-01-01')));
+  const only = await searchEvidence({ queries: [], zhQueries: ['睡眠'], kind: 's', keywordsZh: ['睡眠'] }, svc);
+  assert.equal(only.evidence.length, 1);
+  // 中文結果要真的提到關鍵字（至少兩個），否則丟掉：這篇只有「睡眠」，沒有「手機」
+  const strict = await searchEvidence({ queries: [], zhQueries: ['手機 睡眠'], kind: 's', keywordsZh: ['手機', '睡眠'] }, svc);
+  assert.equal(strict.evidence.length, 0);
+});
+
+import { extractZhTerms } from './agent-local.mjs';
+
+test('extractZhTerms：用詞庫做最長詞比對，去掉功能詞與太常見的詞，依出現順序回傳', () => {
+  const rank = { 高中生: 9000, 高中: 3000, 手機: 2500, 睡眠: 4000, 可能: 120, 因為: 130, 影響: 200, 睡前: 15000, 的: 105, 學業成績: 12000, 學業: 6000, 成績: 900, 批判思考: 50, 需要: 110 };
+  const rankOf = (w) => rank[w];
+  assert.deepEqual(extractZhTerms('高中生睡前滑手機可能會影響睡眠', rankOf), ['高中生', '睡前', '手機', '睡眠']);
+  assert.deepEqual(extractZhTerms('因為手機，學業成績變差；手機！', rankOf), ['手機', '學業成績']);
+  assert.deepEqual(extractZhTerms('需要批判思考', rankOf), ['批判思考']); // 手動加入的研究常用詞排在詞表最前面，一定保留
+  assert.deepEqual(extractZhTerms('English only', rankOf), []);
+  assert.deepEqual(extractZhTerms('手機', () => undefined), []); // 詞庫還沒載入
 });

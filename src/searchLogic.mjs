@@ -18,10 +18,11 @@ export function clampQueries(queries) {
     .slice(0, MAX_QUERIES);
 }
 
-export function openAlexUrl(query, { fromYear = 2020, perPage = PER_QUERY, mailto = '' } = {}) {
+// lang：只找某個語言的文獻（例如 'zh'）。OpenAlex 的搜尋本身不限語言，中文關鍵字可以直接查到中文期刊論文。
+export function openAlexUrl(query, { fromYear = 2020, perPage = PER_QUERY, mailto = '', lang = '' } = {}) {
   const params = new URLSearchParams({
     search: query,
-    filter: `from_publication_date:${fromYear}-01-01,has_abstract:true,type:article`,
+    filter: `from_publication_date:${fromYear}-01-01,has_abstract:true,type:article${lang ? `,language:${lang}` : ''}`,
     'per-page': String(perPage),
     select: 'id,doi,display_name,publication_year,authorships,primary_location,abstract_inverted_index',
   });

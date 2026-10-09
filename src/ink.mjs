@@ -209,6 +209,8 @@ export function setLexicon(words) {
   LEX = new Map();
   (Array.isArray(words) ? words : []).forEach((w, i) => { if (w && !LEX.has(w)) LEX.set(w, i); });
 }
+// 一個詞在常用詞表裡的名次（越小越常用）；不在表裡或詞庫還沒載入時回傳 undefined。給關鍵字抽取用。
+export const lexRank = (word) => (LEX ? LEX.get(word) : undefined);
 export async function loadLexicon(url, fetchImpl = fetch) {
   const res = await fetchImpl(url);
   if (!res.ok) throw new Error(`詞庫載入失敗 HTTP ${res.status}`);
