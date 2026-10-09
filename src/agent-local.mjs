@@ -189,7 +189,7 @@ export function proposeQuestion({ items, answers, ownQuestion }) {
   const strategy = [
     ['研究對象', byKey.who], ['研究情境', byKey.ctx], ['主要結果', byKey.out],
   ].filter((r) => r[1]).map(([label, value]) => ({ label, value }));
-  strategy.push({ label: '時間範圍', value: '國際文獻 2020 年至今；中文文獻 2015 年至今' }, { label: '資料來源', value: 'OpenAlex 學術資料庫（有摘要的期刊論文，含中文與英文）' });
+  strategy.push({ label: '時間範圍', value: '國際文獻 2020 年至今；中文文獻 2015 年至今' }, { label: '資料來源', value: 'OpenAlex 學術資料庫' });
   return { researchQuestion, keywords, kwEn, strategy };
 }
 

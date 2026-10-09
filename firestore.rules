@@ -46,6 +46,12 @@ service cloud.firestore {
       return hasRole(projectId, ['owner', 'editor', 'viewer', 'teacher']);
     }
 
+    // Owner 正在刪除這份研究（project.deleting == true）：這時才允許刪掉平常不能刪的東西（研究歷程、老師的成員文件）
+    function ownerDeleting(projectId) {
+      return hasRole(projectId, ['owner'])
+        && get(/databases/$(database)/documents/projects/$(projectId)).data.get('deleting', false) == true;
+    }
+
     function canWrite(projectId) {
       return hasRole(projectId, ['owner', 'editor']);
     }
@@ -77,6 +83,8 @@ service cloud.firestore {
       allow update: if (
           hasRole(projectId, ['owner'])
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['aiLevel', 'ownerUid'])
+          // 一旦標成刪除中就不能反悔：否則 Owner 可以「標記 → 清掉研究歷程 → 取消標記」來規避歷程不可刪除的限制
+          && !(resource.data.get('deleting', false) == true && request.resource.data.get('deleting', false) != true)
         )
         || (
           hasRole(projectId, ['teacher'])
@@ -122,7 +130,12 @@ service cloud.firestore {
           );
 
         // 移除成員：owner 可以移除老師以外的其他人
-        allow delete: if hasRole(projectId, ['owner']) && memberUid != request.auth.uid && resource.data.role != 'teacher';
+        allow delete: if (hasRole(projectId, ['owner']) && memberUid != request.auth.uid && resource.data.role != 'teacher')
+          // 刪除整份研究時：Owner 可以移除所有其他成員（含老師）
+          || (ownerDeleting(projectId) && memberUid != request.auth.uid)
+          // 研究已經被刪掉之後，任何人都可以清掉自己留下的成員文件
+          || (isSignedIn() && request.auth.uid == memberUid
+              && !exists(/databases/$(database)/documents/projects/$(projectId)));
       }
 
       // ---- invites：只有 owner 能開邀請；任何已登入使用者可以讀「單一」邀請文件以兌換（用 token 當 doc id，等同隨機碼） ----
@@ -152,6 +165,7 @@ service cloud.firestore {
       match /researchState/{docId} {
         allow read: if canRead(projectId);
         allow write: if canWrite(projectId) && docId in ['current', 'canvas'];
+        allow delete: if ownerDeleting(projectId);
       }
 
       // ---- agent trace：只能新增、不能改寫或刪除歷史紀錄；每一筆都必須帶自己的 uid（不能冒用別人的身分）。
@@ -163,7 +177,9 @@ service cloud.firestore {
             (canWrite(projectId) && request.resource.data.k in ['user', 'sync', 'ai', 'sys'])
             || (hasRole(projectId, ['teacher']) && request.resource.data.k == 'sys')
           );
-        allow update, delete: if false;
+        allow update: if false;
+        // 研究歷程平常不能刪；只有 Owner 刪除整份研究時才會一起清掉
+        allow delete: if ownerDeleting(projectId);
       }
     }
   }

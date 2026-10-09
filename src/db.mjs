@@ -223,6 +223,28 @@ export function subscribeMembers(projectId, onChange, onError) {
   }, onError);
 }
 
+// 刪除整份研究（只有 Owner 做得到，規則會檢查）。Firestore 刪掉 project 文件不會連帶刪掉底下的子集合，所以要自己逐一刪：
+//   1. 先把 project 標成 deleting——規則只有在這個狀態下才允許刪除研究歷程與老師的成員文件，組員的列表也會立刻隱藏它
+//   2. 刪畫布物件、研究狀態、邀請、研究歷程、其他成員
+//   3. 刪 project 文件（此時我還是 Owner）；最後才刪自己的成員文件（規則允許「專案已不存在時刪掉自己」）
+// 中途失敗的話 project 會停在 deleting，Owner 下次登入時前端會自動再呼叫一次把它刪完。
+export async function deleteProject(projectId, uid) {
+  const ref = doc(db, 'projects', projectId);
+  await updateDoc(ref, { deleting: true });
+  const wipe = async (name, keep = () => false) => {
+    const snap = await getDocs(collection(db, 'projects', projectId, name));
+    const targets = snap.docs.filter((d) => !keep(d));
+    for (let i = 0; i < targets.length; i += 50) await Promise.all(targets.slice(i, i + 50).map((d) => deleteDoc(d.ref)));
+  };
+  await wipe('objects');
+  await wipe('researchState');
+  await wipe('invites');
+  await wipe('agentTrace');
+  await wipe('members', (d) => d.id === uid);
+  await deleteDoc(ref);
+  await deleteDoc(doc(db, 'projects', projectId, 'members', uid));
+}
+
 export async function updateProjectSettings(projectId, fields) {
   await updateDoc(doc(db, 'projects', projectId), fields);
 }
