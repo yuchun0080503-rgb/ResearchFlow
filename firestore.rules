@@ -1,0 +1,170 @@
+rules_version = '2';
+
+// 資料結構（對應 src/permissions.mjs 的角色矩陣，兩邊務必保持一致）：
+// users/{uid}
+// projects/{projectId}
+//   memberUids: array<uid>              ← 給「我的研究」列表做 array-contains 查詢用
+//   ownerUid, name, course, teacherReq, dueDate, field, reportType, reportUrl, createdAt
+//   aiLevel: 0–3                        ← 老師設定的 AI 權限；只有老師能改，而且老師只能改這一個欄位
+//   members/{uid}        { role, task, displayName, email, color, joinedAt }   role: owner|editor|viewer|teacher
+//   invites/{token}       { role, email, task, createdAt, status, redeemedBy }
+//   objects/{objectId}    Canvas Object（第六章欄位）
+//   researchState/current { json, updatedBy, updatedAt }   小組共用的 Agent 流程狀態（含 Evidence Map）
+//   researchState/canvas  { ver }                          共用的 Canvas 版本號
+//   agentTrace/{traceId}  { w, x, k, uid, at }             k: user|sync|ai|sys；只能新增，不能修改或刪除
+//
+// 這個系統只用 Firebase 免費方案，沒有 Cloud Functions：所有「硬限制」都寫在這份規則裡，
+// 由 Firestore 伺服器強制執行，前端程式被改掉也繞不過去。
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 這些函式用到 get()／exists() 與 {database}，必須定義在這個 match 區塊裡面才有作用
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function memberDoc(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
+    }
+
+    function roleOf(projectId) {
+      return memberDoc(projectId).data.role;
+    }
+
+    function isMember(projectId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
+    }
+
+    function hasRole(projectId, roles) {
+      return isMember(projectId) && roleOf(projectId) in roles;
+    }
+
+    // 四種角色都能讀；老師是唯讀。
+    function canRead(projectId) {
+      return hasRole(projectId, ['owner', 'editor', 'viewer', 'teacher']);
+    }
+
+    function canWrite(projectId) {
+      return hasRole(projectId, ['owner', 'editor']);
+    }
+
+    // ---- users ----
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    match /projects/{projectId} {
+
+      // 讀取整份 project 文件（名稱、截止日等）
+      allow get: if canRead(projectId);
+
+      // 「我的研究」列表查詢：只允許查自己是成員的那些 project
+      allow list: if isSignedIn() && resource.data.memberUids.hasAny([request.auth.uid]);
+
+      // 建立新專案：建立者必須把自己列為 owner 且加進 memberUids；AI 權限只能是預設值 2，不能自己開到 3
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.aiLevel == 2;
+
+      // 專案設定（名稱、課程、截止日…）只有 owner 能改，但 aiLevel 連 owner 也不能改；
+      // aiLevel 只有老師能改，而且老師只能改這一個欄位、值必須是 0–3；
+      // 例外：memberUids 欄位允許「本人透過合法邀請加入自己」這個特例（見下方 invites 的 redeemInvite 流程）
+      allow update: if (
+          hasRole(projectId, ['owner'])
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['aiLevel', 'ownerUid'])
+        )
+        || (
+          hasRole(projectId, ['teacher'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['aiLevel'])
+          && request.resource.data.aiLevel in [0, 1, 2, 3]
+        )
+        || (
+          isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids'])
+          && request.resource.data.memberUids == resource.data.memberUids.concat([request.auth.uid])
+          && exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid))
+        );
+
+      allow delete: if hasRole(projectId, ['owner']);
+
+      // ---- members ----
+      match /members/{memberUid} {
+        allow read: if canRead(projectId);
+
+        // 新增成員：owner 建立自己的 owner 文件（建立專案時），或是本人憑有效邀請自行加入（角色只能是邀請上寫的角色）
+        allow create: if (
+            isSignedIn() && request.auth.uid == memberUid && request.resource.data.role == 'owner'
+            && get(/databases/$(database)/documents/projects/$(projectId)).data.ownerUid == request.auth.uid
+          )
+          || (
+            isSignedIn() && request.auth.uid == memberUid
+            && exists(/databases/$(database)/documents/projects/$(projectId)/invites/$(request.resource.data.inviteToken))
+            && get(/databases/$(database)/documents/projects/$(projectId)/invites/$(request.resource.data.inviteToken)).data.status == 'pending'
+            && get(/databases/$(database)/documents/projects/$(projectId)/invites/$(request.resource.data.inviteToken)).data.role == request.resource.data.role
+          );
+
+        // 改角色／負責內容：只有 owner；不能把自己（唯一 owner）降級、不能把人改成老師、也不能動老師的文件。
+        // 另外允許本人更新自己的顯示名稱／頭像顏色（不含 role）。
+        allow update: if (
+            hasRole(projectId, ['owner'])
+            && resource.data.role != 'teacher'
+            && request.resource.data.role in ['owner', 'editor', 'viewer']
+            && !(memberUid == request.auth.uid && request.resource.data.role != 'owner')
+          )
+          || (
+            isSignedIn() && request.auth.uid == memberUid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'email', 'color'])
+          );
+
+        // 移除成員：owner 可以移除老師以外的其他人
+        allow delete: if hasRole(projectId, ['owner']) && memberUid != request.auth.uid && resource.data.role != 'teacher';
+      }
+
+      // ---- invites：只有 owner 能開邀請；任何已登入使用者可以讀「單一」邀請文件以兌換（用 token 當 doc id，等同隨機碼） ----
+      match /invites/{token} {
+        allow get: if isSignedIn();
+        allow list: if hasRole(projectId, ['owner']);
+        allow create: if hasRole(projectId, ['owner'])
+          && request.resource.data.role in ['editor', 'viewer', 'teacher']
+          && request.resource.data.status == 'pending';
+        allow update: if isSignedIn()
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'redeemed'
+          && request.resource.data.redeemedBy == request.auth.uid
+          && request.resource.data.role == resource.data.role;
+        allow delete: if hasRole(projectId, ['owner']);
+      }
+
+      // ---- canvas objects：第六章 Canvas Object 結構 ----
+      match /objects/{objectId} {
+        allow read: if canRead(projectId);
+        allow create, update: if canWrite(projectId)
+          && request.resource.data.lastEditedBy == request.auth.uid;
+        allow delete: if canWrite(projectId);
+      }
+
+      // ---- research state：小組共用的 Agent 流程狀態與 Canvas 版本號，owner／editor 可寫 ----
+      match /researchState/{docId} {
+        allow read: if canRead(projectId);
+        allow write: if canWrite(projectId) && docId in ['current', 'canvas'];
+      }
+
+      // ---- agent trace：只能新增、不能改寫或刪除歷史紀錄；每一筆都必須帶自己的 uid（不能冒用別人的身分）。
+      //      owner／editor 可以寫各種紀錄；老師只會寫「權限」類紀錄（調整 AI Level）；viewer 不能寫 ----
+      match /agentTrace/{traceId} {
+        allow read: if canRead(projectId);
+        allow create: if request.resource.data.uid == request.auth.uid
+          && (
+            (canWrite(projectId) && request.resource.data.k in ['user', 'sync', 'ai', 'sys'])
+            || (hasRole(projectId, ['teacher']) && request.resource.data.k == 'sys')
+          );
+        allow update, delete: if false;
+      }
+    }
+  }
+}

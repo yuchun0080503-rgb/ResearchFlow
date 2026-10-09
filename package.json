@@ -1,0 +1,15 @@
+{
+  "name": "researchflow-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ResearchFlow：多人研究畫布 + Research Agent（Firebase 免費方案：Auth／Firestore／Hosting，無任何 API 金鑰）。",
+  "scripts": {
+    "start": "node dev-server.mjs",
+    "test": "node --test src/*.test.mjs",
+    "deploy": "firebase deploy --only firestore:rules,hosting"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "firebase-tools": "^15.33.0"
+  }
+}

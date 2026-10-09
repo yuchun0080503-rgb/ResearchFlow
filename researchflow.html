@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ResearchFlow</title>
+<style>
+:root{--page:#f2f5fb;--bg:#fdfeff;--fg:#1c222e;--mute:#6b7386;--line:#e1e6f0;--soft:#eaeffb;--ac:#3d6bdc;--ac2:#e8834a;--ok:#1f9d68;--warn:#c98a12;--bad:#dd4a4a;box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--page:#171310;--bg:#1f1a15;--fg:#f1e9dd;--mute:#ab9a86;--line:#332a20;--soft:#271f18;--ac:#e9a25c;--ac2:#c893f5}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--page);color:var(--fg);font:15px/1.6 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+button{font:inherit;color:inherit;background:none;border:1px solid var(--line);border-radius:10px;padding:6px 12px;cursor:pointer}
+button:hover:not(:disabled){background:var(--soft)}button:disabled{opacity:.45;cursor:not-allowed}
+button.pri{background:var(--fg);color:var(--bg);border-color:var(--fg)}button.pri:hover:not(:disabled){opacity:.85;background:var(--fg)}
+button.on{border-color:var(--ac);color:var(--ac)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+input,select{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:7px 10px;width:100%}
+select{width:auto;padding:5px 8px}
+h1,h2,h3{margin:0;font-weight:600}.mute{color:var(--mute)}.sm{font-size:13px}.sp{flex:1}.hide{display:none!important}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+.ic{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:6px;flex:none}
+header{height:64px;display:flex;align-items:center;gap:16px;padding:0 28px;position:relative;z-index:20}
+.brand{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:600;cursor:pointer;letter-spacing:.01em}
+.date{display:flex;align-items:center;background:var(--soft);border-radius:14px;padding:6px 14px 6px 12px;gap:10px;line-height:1.15}
+.date b{font-size:30px;font-weight:300;letter-spacing:-.02em}
+.date span{border-left:1px solid var(--line);padding-left:10px;font-size:12px;color:var(--mute)}
+.date span em{display:block;font-style:normal;color:var(--fg);font-size:13px}
+.avb{width:38px;height:38px;border-radius:50%;padding:0;border:2px solid var(--bg);box-shadow:0 0 0 1px var(--line);color:#fff;font-weight:600;display:grid;place-items:center}
+.menu{position:absolute;right:28px;top:58px;background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:14px;width:250px;box-shadow:0 8px 30px rgba(0,0,0,.1)}
+.menu button{width:100%;text-align:left;border:0;margin-top:4px}
+.av{width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:12px;flex:none}
+.tag{font-size:12px;padding:1px 9px;border-radius:99px;border:1px solid var(--line);color:var(--mute);white-space:nowrap}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 28px 64px}
+.big{background:var(--bg);border:1px solid var(--line);border-radius:28px;padding:36px;box-shadow:0 1px 2px rgba(20,20,40,.03),0 12px 32px -18px rgba(20,20,40,.14)}
+.home{display:grid;grid-template-columns:1.25fr 1fr;gap:20px;margin-top:28px}
+@media(max-width:820px){.home{grid-template-columns:1fr}}
+.bh{display:flex;align-items:center;gap:14px;margin-bottom:20px}.bh h3{font-size:20px}
+.badge{width:44px;height:44px;border-radius:16px;background:var(--soft);display:grid;place-items:center}.badge .ic{margin:0;width:22px;height:22px}
+.row{padding:15px 18px;border:1px solid var(--line);border-radius:16px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:12px;flex-wrap:wrap;transition:border-color .15s,box-shadow .15s}
+.row:hover{border-color:var(--ac);box-shadow:0 6px 18px -12px rgba(77,107,255,.35)}.row .gap{flex-basis:100%;color:var(--mute);font-size:13px}
+.stack{display:flex}.stack .av{margin-left:-6px;border:2px solid var(--bg)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--soft);padding:5px;border-radius:18px;margin:26px 0 18px}
+.seg button{border:0;border-radius:14px;padding:10px;color:var(--mute)}.seg button.on{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--line)}
+#v-login .big{max-width:520px;margin:9vh auto 0}#v-login h1{font-size:clamp(26px,4.5vw,34px);line-height:1.35;margin-bottom:14px}
+.big button.pri{border-radius:14px;padding:11px 18px}.big input{border-radius:12px}
+#v-ws{height:calc(100% - 64px);background:var(--bg)}
+#ws{display:grid;grid-template-columns:1fr 430px;height:100%}
+@media(max-width:900px){#ws{grid-template-columns:1fr;grid-template-rows:55% 45%}}
+.cv{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
+.pbar{display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--soft);flex-wrap:wrap}
+.pbar b{font-size:14.5px;font-weight:700}.pbar button{border:0;padding:6px 10px;background:transparent;border-radius:11px}.pbar button:hover{background:var(--bg)}
+#pst{background:var(--ac);color:#fff;border:0;font-weight:600;padding:3px 12px}
+.cvw{position:relative;flex:1;min-height:0;overflow:hidden}
+#cv{width:100%;height:100%;display:block;touch-action:none;background:var(--bg)}
+.tools{position:absolute;top:14px;left:14px;display:flex;gap:2px;background:var(--bg);padding:5px;border:1px solid var(--line);border-radius:18px;z-index:2;flex-wrap:wrap;max-width:calc(100% - 28px);box-shadow:0 6px 20px -10px rgba(80,50,10,.25)}
+.tools button{border:0;padding:7px 11px;font-size:13px;border-radius:13px-}.tools button.on{background:var(--ac);color:#fff}
+.tools input[type=range]{width:64px;padding:0;border:0;align-self:center}.tools .vr{width:1px;background:var(--line);margin:4px 4px}
+.zoom{position:absolute;right:14px;bottom:14px;display:flex;align-items:center;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:4px;z-index:2;box-shadow:0 6px 20px -10px rgba(80,50,10,.22)}
+.zoom button{border:0;padding:4px 8px}.zoom .ic{margin:0}
+.syb{position:absolute;left:14px;bottom:14px;z-index:2;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:6px 13px;font-size:12px;display:flex;gap:8px;align-items:center;box-shadow:0 6px 20px -10px rgba(80,50,10,.22)}
+.syb button{border:0;padding:0 4px;font-size:12px;color:var(--ac)}
+.insp{position:absolute;left:10px;right:10px;bottom:52px;z-index:3;background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:12px 14px;max-height:46%;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+.insp .ib{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.insp .ib button{padding:3px 9px;font-size:13px}
+.insp .kv{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0;font-size:12px;color:var(--mute)}
+.insp label{display:inline-flex;align-items:center;gap:5px;margin:4px 12px 0 0;color:var(--fg)}.insp label input{width:auto}
+.ti{position:absolute;z-index:4;font:15px "Noto Sans TC",sans-serif;border:1px solid var(--ac);min-width:140px;width:auto;padding:3px 7px}
+.side{display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;gap:6px;padding:12px 12px 10px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:var(--soft)}
+.tabs button{flex:none;border:1px solid transparent;border-radius:99px;padding:7px 13px;color:var(--mute);font-size:12.5px;background:var(--bg);display:flex;align-items:center;gap:5px}
+.tabs button .ic{margin:0;width:14px;height:14px}
+.tabs button.on{color:#fff;background:var(--ac);border-color:var(--ac)}
+.pane{overflow:auto;padding:20px 18px;flex:1;font-size:14px;line-height:1.6}
+.pane h3{font-size:11.5px;font-weight:700;margin:26px 0 8px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase}.pane h3:first-child{margin-top:2px}
+
+.ah{display:flex;gap:12px;align-items:center;padding:13px 15px;border-radius:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 7%,var(--bg)),color-mix(in srgb,var(--ac2) 6%,var(--bg)));border:1px solid var(--line);margin-bottom:12px}
+.ab{width:34px;height:34px;border-radius:10px;background:var(--bg);display:grid;place-items:center;flex:none;box-shadow:0 0 0 1px var(--line);color:var(--ac)}
+.flow{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+.flow span{font-size:11.5px;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--mute)}
+.flow .d{background:color-mix(in srgb,var(--ok) 16%,var(--soft));color:var(--ok)}.flow .c{background:var(--ac);color:#fff}
+.box{border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:10px 0}
+.warn{border-color:var(--warn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px}.chips button{font-size:13px;padding:3px 11px;border-radius:99px}
+.acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;box-shadow:0 0 0 3px color-mix(in srgb, currentColor 16%, transparent)}.g{background:var(--ok);color:var(--ok)}.y{background:var(--warn);color:var(--warn)}.r{background:var(--bad);color:var(--bad)}
+.hl{display:grid;grid-template-columns:118px 1fr;column-gap:14px;padding:10px 2px;border-bottom:1px solid var(--line);align-items:start;font-size:13.5px;line-height:1.55}
+.hl.tt{grid-template-columns:50px 1fr}
+.hl span:first-child{color:var(--mute);font-size:12px;padding-top:2px}
+.hl span:last-child{color:var(--fg);word-break:break-word;display:block}
+.hl span:last-child div{margin-top:4px}
+.hl span:last-child div:first-child{margin-top:0}
+.hl .st{display:inline-flex;align-items:center;gap:7px}
+.ev{border-left:3px solid var(--ok);padding:2px 0 2px 12px;margin:12px 0}.ev.cn{border-color:#e2662b}.ev.un{border-color:var(--warn)}
+.ev summary{cursor:pointer}.ev p{margin:4px 0;font-size:13px;color:var(--mute)}
+.bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;display:flex;margin:6px 0}.bar i{display:block;height:100%}
+dialog{border:1px solid var(--line);border-radius:28px;background:var(--bg);color:var(--fg);width:min(560px,94vw);padding:28px;max-height:90vh}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.mrow{display:grid;grid-template-columns:auto 1fr 110px 1fr auto;gap:8px;align-items:center;margin:8px 0}
+@media(max-width:560px){.mrow{grid-template-columns:auto 1fr 1fr}}
+.sw{display:flex;gap:8px;margin-top:6px}.sw button{width:30px;height:30px;border-radius:50%;padding:0}.sw button.on{outline:2px solid var(--fg);outline-offset:2px}
+.note{font-size:12px;color:var(--mute);margin-top:22px}
+.stage{display:flex;align-items:center;gap:12px;padding:14px 15px;border-radius:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 9%,var(--bg)),color-mix(in srgb,var(--ac2) 7%,var(--bg)));border:1px solid var(--line);margin-bottom:4px}
+.stage .sb{width:34px;height:34px;border-radius:10px;background:var(--bg);display:grid;place-items:center;color:var(--ac);flex:none;box-shadow:0 0 0 1px var(--line)}
+.stage .sb .ic{margin:0}
+.stage b{font-size:14.5px}
+.hl .st{display:flex;align-items:center;gap:7px}
+.hl.sync{opacity:.55}
+.tag.ai{background:var(--ac);color:#fff;border-color:var(--ac)}
+.tag.sys{background:var(--warn);color:#fff;border-color:var(--warn)}
+.tag.sync{background:transparent;border-color:transparent;padding-left:0}
+
+body{background-image:radial-gradient(640px 440px at 4% -8%,rgba(61,107,220,.10),transparent 60%),radial-gradient(540px 420px at 98% 2%,rgba(232,131,74,.10),transparent 60%),radial-gradient(560px 460px at 56% 110%,rgba(31,157,104,.08),transparent 60%);background-attachment:fixed}
+#cv,.cvw,.tools,.zoom{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+.ti{-webkit-user-select:text;user-select:text}
+#v-login{position:relative}
+#v-login h1{background:linear-gradient(90deg,#3f63e8,#7c3aed 55%,#e2662b);-webkit-background-clip:text;background-clip:text;color:transparent}
+.bub{position:absolute;padding:6px 16px;border-radius:99px;font-size:14px;font-weight:600;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.12);animation:flt 7s ease-in-out infinite;pointer-events:none}
+.b1{left:10%;top:16%;background:#3f63e8}.b2{right:9%;top:24%;background:#e2662b;animation-delay:-2s}.b3{left:14%;bottom:18%;background:#12a08f;animation-delay:-4s}.b4{right:12%;bottom:14%;background:#7c3aed;animation-delay:-1s}
+@media(max-width:760px){.bub{display:none}}
+@keyframes flt{50%{transform:translateY(-14px)}}
+@keyframes vin{from{opacity:0;transform:translateY(16px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes fin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes tw{50%{opacity:.25}}
+#v-login,#v-proj,#v-ws{animation:vin .5s cubic-bezier(.2,.8,.2,1)}
+.home .big{animation:vin .55s cubic-bezier(.2,.8,.2,1) both}.home .big:nth-child(2){animation-delay:.09s}
+.home .big:nth-child(1) .badge{background:rgba(63,99,232,.14);color:#3f63e8}.home .big:nth-child(2) .badge{background:rgba(226,102,43,.14);color:#e2662b}
+.pane.fx{animation:fin .3s both}
+dialog[open]{animation:pop .25s both}.menu:not(.hide){animation:pop .18s both}
+.rz{animation:tw 3.2s ease-in-out infinite}.rz:nth-child(2){animation-delay:-.6s}.rz:nth-child(3){animation-delay:-1.2s}.rz:nth-child(4){animation-delay:-1.8s}.rz:nth-child(5){animation-delay:-2.4s}
+button{transition:background .15s,transform .15s,box-shadow .15s}button:active{transform:scale(.97)}
+.brand:hover svg{transform:rotate(-6deg) scale(1.06)}.brand svg{transition:transform .3s}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ---- responsive: tablet & phone ---- */
+@media(max-width:900px){
+ header{height:58px;padding:0 16px;gap:10px}
+ .brand .bt{display:none}
+ .date b{font-size:22px}.date span{padding-left:8px;font-size:11px}
+ .avb{width:34px;height:34px}
+ .wrap{padding:20px 16px 48px}
+ .big{border-radius:22px;padding:22px}
+ .home{gap:14px;margin-top:18px}
+ dialog{border-radius:20px;padding:20px;width:94vw}
+ .menu{right:16px;left:16px;width:auto}
+}
+@media(max-width:640px){
+ .home{grid-template-columns:1fr}
+ #ws{grid-template-columns:1fr!important;grid-template-rows:52vh 1fr!important}
+ .cv{border-right:0;border-bottom:1px solid var(--line)}
+ .tools{gap:1px;padding:3px;border-radius:12px;max-width:calc(100% - 16px)}
+ .tools button{padding:7px 8px}
+ .tools button span,.tools .lbl{display:none}
+ .tools input[type=range]{width:44px}
+ .pbar{padding:6px 10px;gap:6px}
+ .pbar b{font-size:13px;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .tabs button{padding:12px 2px;font-size:12px}
+ .pane{padding:14px}
+ .zoom,.syb{transform:scale(.92);transform-origin:bottom}
+ input,select,button{font-size:16px}
+ .row{padding:14px}
+}
+@media(hover:none){
+ button:active{background:var(--soft)}
+ .tools button,.zoom button{min-width:38px;min-height:38px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand" id="brand" tabindex="0"><span id="logo"></span><span class="bt">ResearchFlow</span></div><span class="sp"></span>
+  <div id="hr" class="hide" style="display:flex;gap:22px;align-items:center">
+    <div class="date" id="date"></div>
+    <button class="avb" id="avb" aria-label="個人檔案設定" aria-haspopup="true"></button>
+  </div>
+  <div class="menu hide" id="menu">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><span class="av" id="mav" style="width:36px;height:36px;font-size:15px"></span><div><b id="mn"></b><div class="sm mute" id="me"></div></div></div>
+    <button id="mpf"><i data-i="user"></i>個人檔案設定</button><button id="out"><i data-i="out"></i>登出</button>
+  </div>
+</header>
+
+<section id="v-login"><div class="bub b1" aria-hidden="true">想法</div><div class="bub b2" aria-hidden="true">研究問題</div><div class="bub b3" aria-hidden="true">反向證據</div><div class="bub b4" aria-hidden="true">來源驗證</div><div class="big">
+  <h1>先理解你們在研究什麼，<br>再幫你們發現還缺什麼。</h1>
+  <p class="mute">小組在共同畫布上討論想法，Research Agent 整理研究範圍、搜尋正反證據，最後的判斷由你們決定。</p>
+  <div class="seg" role="radiogroup" aria-label="登入身分"><button data-r="s" class="on"><i data-i="cap"></i>我是學生</button><button data-r="t"><i data-i="clip"></i>我是老師</button></div>
+  <div id="lf" class="hide">
+    <label for="le">電子郵件</label><input id="le" type="email" autocomplete="email" placeholder="you@example.com">
+    <label for="lp">密碼（至少 6 個字元）</label><input id="lp" type="password" autocomplete="current-password">
+    <label for="ln">顯示名稱（只有註冊新帳號時需要）</label><input id="ln" autocomplete="nickname" placeholder="組員會看到的名字" style="margin-bottom:16px">
+  </div>
+  <button class="pri" id="login" style="width:100%"><i data-i="user"></i><span id="loginT">進入展示</span></button>
+  <div id="lx" class="hide acts" style="margin-top:8px"><button id="reg" style="flex:1">註冊新帳號</button><button id="fgt" style="flex:1">忘記密碼</button></div>
+  <p class="note" id="mode" style="margin-top:14px">連線中…</p>
+</div></section>
+
+<section id="v-proj" class="wrap hide">
+  <h2 id="hi" style="font-size:28px"></h2><p class="mute" style="margin:6px 0 0">選擇要繼續的研究，或開始新的一份。</p>
+  <div class="home">
+    <div class="big"><div class="bh"><span class="badge"><i data-i="folder"></i></span><div><h3>我的研究／報告</h3><div class="sm mute" id="cnt"></div></div></div><div id="plist"></div></div>
+    <div class="big" id="boxB"><div class="bh"><span class="badge"><i data-i="plus"></i></span><div><h3>建立新的研究／報告</h3><div class="sm mute">你會成為 Project Owner</div></div></div>
+      <div id="form">
+        <label for="f1">報告／研究名稱</label><input id="f1" value="AI 與學生學習研究">
+        <label for="f2">課程名稱</label><input id="f2" placeholder="例如：教育科技導論">
+        <label for="f3">老師要求</label><input id="f3" placeholder="例如：需含正反證據與參考文獻">
+        <label for="f4">截止日期</label><input id="f4" type="date">
+        <label for="f5">研究領域</label><input id="f5" placeholder="例如：教育科技">
+        <label for="f6">邀請組員與負責內容（Email:負責內容，逗號分隔）</label><input id="f6" placeholder="b@example.com:蒐集反向觀點, c@example.com:驗證來源">
+        <div class="acts" style="margin-top:22px"><button class="pri" id="c2"><i data-i="plus"></i>建立並進入</button></div>
+      </div>
+      <p id="tnote" class="hide mute sm">老師帳號不建立研究專案。進入左側的研究後，可檢視進度與 AI 使用歷程、設定 AI 權限；畫布內容為唯讀。</p>
+    </div>
+  </div>
+</section>
+
+<section id="v-ws" class="hide"><div id="ws">
+  <div class="cv">
+    <div class="pbar"><button id="back"><i data-i="back"></i>返回</button><b id="pt"></b><span class="tag" id="pst"></span><span class="tag" id="rolelab"></span><span class="sp"></span><span id="pres" class="stack"></span><button id="rpt"><i data-i="ext"></i>小組報告</button><button id="cfg"><i data-i="gear"></i>研究檔案</button></div>
+    <div class="cvw" id="cvw">
+      <div class="tools" role="toolbar" aria-label="畫布工具">
+        <button id="undo" title="返回上一個操作 (Ctrl+Z)" aria-label="返回上一個操作"><i data-i="undo"></i></button><button id="redo" title="取消返回 (Ctrl+Shift+Z)" aria-label="取消返回"><i data-i="redo"></i></button><span class="vr"></span>
+        <button data-t="sel" class="on"><i data-i="ptr"></i>選取</button><button data-t="hand"><i data-i="hand"></i>平移</button><button data-t="pen"><i data-i="pen"></i>手寫</button><button data-t="txt"><i data-i="type"></i>文字</button><button data-t="link"><i data-i="arrow"></i>連線</button><button data-t="era"><i data-i="era"></i>擦除</button>
+        <input type="range" id="pw" min="1" max="8" value="3" aria-label="筆畫粗細"><span class="sm mute" id="hws" style="align-self:center;padding:0 8px"></span>
+      </div>
+      <canvas id="cv" aria-label="無限研究畫布"></canvas>
+      <div class="insp hide" id="insp"></div>
+      <div class="syb"><span id="sy"></span><button id="sim">模擬組員操作</button></div>
+      <div class="zoom"><button id="zo" aria-label="縮小"><i data-i="minus"></i></button><span class="sm" id="zl" style="min-width:42px;text-align:center"></span><button id="zi" aria-label="放大"><i data-i="plus"></i></button><button id="zr" aria-label="回到原點"><i data-i="fit"></i></button></div>
+    </div>
+  </div>
+  <aside class="side">
+    <div class="tabs" role="tablist"><button data-p="agent" class="on"><i data-i="spark"></i>Agent</button><button data-p="ev"><i data-i="search"></i>證據</button><button data-p="hl"><i data-i="pulse"></i>健康檢查</button><button data-p="st"><i data-i="clip"></i>研究狀態</button><button data-p="tr"><i data-i="clock"></i>歷程</button></div>
+    <div class="pane" id="pane"></div>
+  </aside>
+</div></section>
+
+<dialog id="pd"></dialog><dialog id="pf"></dialog>
+
+<script type="module">
+// 第一步地基：Firebase Auth + Firestore。這段用動態 import，所以就算 firebase-config.js
+// 不存在或連不上，也只是靜靜留在 demo 模式——下面主程式完全不受影響，不會白屏。
+window.RF_MODE = "demo";
+// 手寫與圖示的自動偵測（src/ink.mjs）跟 Firebase 無關，展示模式也能用；載入失敗就退回手動輸入。
+window.RF_VER = "2026.10.09-5";
+try {
+  window.RFINK = await import("./src/ink.mjs");
+  // 詞庫（常用詞對照表）在背景載入，用來校正手寫辨識；載入前或載入失敗時辨識照常運作，只是少了詞庫校正。
+  window.RFINK.loadLexicon("./src/lexicon-zh.txt").then(() => window.dispatchEvent(new Event("rf:lexicon")), (err) => console.info("[ResearchFlow] 詞庫載入失敗：", err?.message || err));
+} catch (err) { console.info("[ResearchFlow] 無法載入 ink.mjs，手寫內容改為手動輸入。", err?.message || err); }
+try {
+  const { firebaseConfig } = await import("./src/firebase-config.js");
+  if (!firebaseConfig || /YOUR_/.test(firebaseConfig.apiKey || "YOUR_")) throw new Error("firebase-config.js 尚未填入真實設定值");
+  const rfdb = await import("./src/db.mjs");
+  window.RFDB = rfdb;
+  window.RF_MODE = "live";
+  console.info("[ResearchFlow] Firebase 已連接，使用真實資料。");
+} catch (err) {
+  console.info("[ResearchFlow] 未偵測到 src/firebase-config.js，使用展示用假資料。", err?.message || err);
+}
+window.dispatchEvent(new Event("rf:ready"));
+</script>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const PT={user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>',plus:'<path d="M12 5v14M5 12h14"/>',minus:'<path d="M5 12h14"/>',folder:'<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',ptr:'<path d="M5 3l14 7-6 2-2 6z"/>',hand:'<path d="M18 11V6a2 2 0 00-4 0v5M14 10V4a2 2 0 00-4 0v6M10 10.5V6a2 2 0 00-4 0v8a7 7 0 007 7h1a6 6 0 006-6v-4a2 2 0 00-4 0"/>',pen:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/>',type:'<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',arrow:'<path d="M5 12h14M15 8l4 4-4 4"/>',era:'<path d="M7 21h13M5 13l8-8a2 2 0 013 0l3 3a2 2 0 010 3l-8 8H8l-3-3a2 2 0 010-3z"/>',back:'<path d="M19 12H5M12 19l-7-7 7-7"/>',undo:'<path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/>',redo:'<path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/>',spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',file:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5"/>',out:'<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>',cap:'<path d="M22 10L12 5 2 10l10 5zM6 12v5c3 2 9 2 12 0v-5"/>',clip:'<path d="M9 4h6v3H9zM7 5H6a2 2 0 00-2 2v13a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',grp:'<path d="M3 3h7v7H3zM14 14h7v7h-7z"/>',copy:'<path d="M9 9h11v11H9zM5 15V5a1 1 0 011-1h10"/>',trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',fit:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',alert:'<path d="M12 3l10 18H2zM12 10v5M12 18v.01"/>',check:'<path d="M20 6L9 17l-5-5"/>',ext:'<path d="M14 4h6v6M20 4L10 14M19 13v6a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1h6"/>',pulse:'<path d="M3 12h4l2-7 4 14 2-7h6"/>',clock:'<path d="M12 7v5l3.5 2M21 12a9 9 0 11-9-9 9 9 0 019 9z"/>'};
+const I=n=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${PT[n]}</svg>`;
+const icons=(r=document)=>r.querySelectorAll("i[data-i]").forEach(e=>{e.outerHTML=I(e.dataset.i)});
+const SPARK=s=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#f5b400"/></linearGradient></defs><path d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z" fill="url(#sg)"/></svg>`;
+const LOGO=`<svg width="38" height="38" viewBox="0 0 44 44" aria-label="ResearchFlow"><defs><linearGradient id="lgb" x1="6" y1="2" x2="34" y2="32" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="var(--ac2)"/><stop offset="1" stop-color="var(--ac)"/></linearGradient></defs>
+<path d="M22 4C12.6 4 5 11 5 19.6c0 5.3 2.9 10 7.3 12.8-.4 2.2-1.5 4.2-3.2 5.8 3-.1 5.9-1.2 8.2-3.1 1.4.3 2.9.5 4.7.5 9.4 0 17-7 17-15.6S31.4 4 22 4z" fill="none" stroke="url(#lgb)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M22 11.5c-4 0-7.2 3-7.2 6.8 0 2.4 1.3 4.6 3.4 5.8.4.2.6.6.6 1.1v.6c0 .5.5 1 1 1h4.4c.5 0 1-.5 1-1v-.6c0-.5.2-.9.6-1.1 2.1-1.2 3.4-3.4 3.4-5.8 0-3.8-3.2-6.8-7.2-6.8z" fill="url(#lgb)"/>
+<path d="M19.4 29h5.2M20 31.6h4" stroke="var(--ac)" stroke-width="1.7" stroke-linecap="round"/>
+</svg>`;
+const CO=["#3f63e8","#e2662b","#12a08f","#7c3aed","#be185d"];
+const U={A:{n:"家欣",c:CO[0],email:"jiaxin@gmail.com",id:"RF-U-7F3A21"},B:{n:"Fanny",c:CO[1],email:"fanny@gmail.com",id:"RF-U-2B9C44"},C:{n:"小明",c:CO[2],email:"ming@gmail.com",id:"RF-U-51D0E8"},T:{n:"王老師",c:CO[3],email:"teacher@school.edu",id:"RF-U-9D02AE"}};
+const TAGS={claim:"主張",counter:"反向觀點",question:"待驗證問題",evidence:"證據"},STG=["研究問題","假設","證據","討論"];
+const LVN=["No AI","Research Assistant","Thinking Assistant","Writing Assistant"];
+let ROLE="s",ME="A",p=null,S=null,sel=new Set(),tool="sel",pane="agent",editing={},linkFrom=null,uid=100;
+const fresh=()=>({step:0,ver:null,rd:[],scope:{},rq:"",kw:[],rounds:0,ev:[],msg:"",tok:0,skip:false,qs:[],sum:"",scopeReasons:null,qs3:null,tooBroad:null,topic:"",q0:"",strat:null,sq:[],cq:[]});
+const LIVE=()=>window.RF_MODE==="live";
+let busy=""; // Agent 正在等後端回應時的說明文字（只存在本機，不寫進共用的研究狀態）
+const mkO=o=>{const r=Object.assign({mod:o.by,ver:1,tag:"",stage:"",group:"",aiRead:"",conf:false,inRQ:false,inKW:false,ans:false,read:false,id:++uid,ts:Date.now()},o);
+ if(LIVE())r.id=ME+"_"+Date.now().toString(36)+"_"+r.id; // 本地 id 會直接當 Firestore 文件 id：加上 uid 前綴避免不同使用者互相覆蓋，加上時間避免重新整理後計數器歸零而蓋掉自己舊的物件
+ return r};
+const sq=(x,y)=>Array.from({length:24},(_,i)=>[x+i*8,y+Math.sin(i/2)*7]);
+const mkP=o=>Object.assign({stage:"畫布討論",LV:2,objs:[],ver:24,S:fresh(),trace:[],v:null,H:null,hi:0,code:Math.random().toString(36).slice(2,8),req:"",field:"",course:"",due:""},o);
+const projects=[mkP({name:"AI 與學生學習研究",course:"教育科技導論",req:"需含正反證據與參考文獻",due:"2026-10-30",field:"教育科技",
+ members:[{u:"A",role:"Owner",duty:"統整研究問題"},{u:"B",role:"Editor",duty:"蒐集反向觀點"},{u:"C",role:"Editor",duty:"驗證來源"}],
+ objs:[mkO({type:"stroke",by:"A",pts:sq(-300,-190),w:3,tag:"",aiRead:"研究主題：生成式 AI 與大學生學習"}),mkO({type:"text",by:"A",x:-300,y:-100,text:"AI 搜尋資料速度比較快。",tag:"claim"}),mkO({type:"text",by:"B",x:-300,y:-30,text:"但是可能產生 AI 依賴。",tag:"counter"}),mkO({type:"text",by:"C",x:-300,y:40,text:"需要確認是否真的提高學習成績。",tag:"question"})]})];
+projects[0].trace=[["19:03","家欣","新增手寫內容。","user"],["19:04","Fanny","新增限制性觀點。","user"],["19:04","小明","新增待驗證問題。","user"]].map(a=>({t:a[0],w:a[1],x:a[2],k:a[3]}));
+const nowT=()=>new Date().toTimeString().slice(0,5);
+// live 模式：歷程寫進 Firestore（畫面上的歷程來自訂閱）。學生端只寫「學生／同步」類紀錄；
+// 「Agent／權限」類紀錄由 Cloud Functions 寫入（規則不允許前端偽造），所以這裡直接略過。
+const traceLive=(fid,w,x,k)=>{if(k==="user"||k==="sync")RFDB.addTrace(fid,{w,x,k},ME).catch(err=>console.error("[ResearchFlow] 寫入歷程失敗：",err))};
+const log=(w,x,k="user")=>{if(LIVE()&&p.fid){traceLive(p.fid,w,x,k);return}p.trace.push({t:nowT(),w,x,k})};
+const show=id=>{["login","proj","ws"].forEach(k=>$("#v-"+k).classList.toggle("hide",k!==id));$("#hr").classList.toggle("hide",id==="login")};
+const getO=id=>p.objs.find(o=>o.id===id);
+// live 模式的角色以專案成員資料為準（老師是透過老師邀請連結加入的成員）；demo 模式沿用登入畫面選的身分。
+const roleIn=q=>{const r=(q.members.find(m=>m.u===ME)||{}).role;return LIVE()?r:ROLE==="t"?"Teacher":r};
+const myRole=()=>roleIn(p);
+const isT=()=>myRole()==="Teacher";
+const canEdit=()=>["Owner","Editor"].includes(myRole());
+const av=(k,s=24)=>`<span class="av" style="background:${U[k].c};width:${s}px;height:${s}px" title="${esc(U[k].n)}">${esc(U[k].n[0])}</span>`;
+
+/* header */
+$("#logo").innerHTML=LOGO;
+(()=>{const d=new Date();$("#date").innerHTML=`<b>${d.getDate()}</b><span><em>${d.toLocaleDateString("zh-TW",{month:"long"})}</em>${d.toLocaleDateString("zh-TW",{weekday:"long"})}　${d.getFullYear()}</span>`})();
+function renderAv(){const u=U[ME];$("#avb").style.background=u.c;$("#avb").textContent=u.n[0];$("#mav").style.background=u.c;$("#mav").textContent=u.n[0];$("#mn").textContent=u.n;$("#me").textContent=u.email}
+$("#avb").onclick=e=>{e.stopPropagation();$("#menu").classList.toggle("hide")};
+addEventListener("click",e=>{if(!e.target.closest("#menu"))$("#menu").classList.add("hide")});
+$("#brand").onclick=()=>{if(!$("#hr").classList.contains("hide"))leaveWs()};
+$("#out").onclick=()=>{$("#menu").classList.add("hide");
+ detachLive(p);
+ if(unsubProjects){unsubProjects();unsubProjects=null}
+ if(LIVE()){projects.length=0;p=null;RFDB.signOutUser().catch(()=>{})}
+ show("login")};
+$("#mpf").onclick=()=>{$("#menu").classList.add("hide");openPF()};
+function openPF(){const u=U[ME];let col=u.c;const d=$("#pf");
+ d.innerHTML=`<h2>個人檔案設定</h2><label for="pn">顯示名稱</label><input id="pn" value="${esc(u.n)}">
+ <label>頭像顏色</label><div class="sw">${CO.map(c=>`<button data-c="${c}" style="background:${c}" class="${c===col?"on":""}" aria-label="頭像顏色"></button>`).join("")}</div>
+ <div class="hl" style="margin-top:18px"><span>帳號</span><span>${esc(u.email)}</span></div><div class="hl"><span>ResearchFlow User ID</span><span>${u.id}</span></div><div class="hl"><span>登入方式</span><span>${LIVE()?"電子郵件與密碼":"展示帳號"}</span></div>
+ <p class="note">登入只負責確認你是誰（密碼由 Firebase Authentication 保管）；研究資料由 ResearchFlow 自己的資料庫管理。</p>
+ <div class="acts" style="justify-content:flex-end"><button id="pc">取消</button><button class="pri" id="ps">儲存</button></div>`;
+ d.querySelectorAll(".sw button").forEach(b=>b.onclick=()=>{col=b.dataset.c;d.querySelectorAll(".sw button").forEach(x=>x.classList.toggle("on",x===b))});
+ $("#pc").onclick=()=>d.close();$("#ps").onclick=()=>{u.n=$("#pn").value.trim()||u.n;u.c=col;d.close();
+  if(LIVE())RFDB.updateMyProfile(ME,{displayName:u.n,color:u.c},projects.map(q=>q.fid).filter(Boolean)).catch(err=>alert("儲存個人檔案失敗："+(err?.message||err)));renderAv();renderProj();p&&!$("#v-ws").classList.contains("hide")&&openWsUI()};d.showModal()}
+
+/* login & home */
+$$(".seg button").forEach(b=>b.onclick=()=>{ROLE=b.dataset.r;$$(".seg button").forEach(x=>x.classList.toggle("on",x===b))});
+function hashCode(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h)}
+const CAP=r=>r?r[0].toUpperCase()+r.slice(1):r;
+let unsubProjects=null;
+let regMode=false; // true：這次按下的是「註冊新帳號」
+$("#reg").onclick=()=>{regMode=true;$("#login").onclick()};
+$("#fgt").onclick=async()=>{const em=$("#le").value.trim();if(!em){alert("請先在上方輸入你的電子郵件。");return}
+ try{await RFDB.resetPassword(em);alert("已寄出重設密碼的信到 "+em+"，請到信箱收信（也請看一下垃圾信件匣）。")}catch(err){alert("無法寄出重設密碼信："+RFDB.authErrorText(err))}};
+["le","lp","ln"].forEach(id=>$("#"+id).onkeydown=e=>{if(e.key==="Enter")$("#login").onclick()});
+$("#login").onclick=async()=>{
+ if(window.RF_MODE==="live"){
+  const reg=regMode;regMode=false;
+  const em=$("#le").value.trim(),pw=$("#lp").value;
+  if(!em||!pw){alert("請輸入電子郵件與密碼。");return}
+  const b=$("#login");b.disabled=$("#reg").disabled=true;const old=b.innerHTML;b.innerHTML=reg?"註冊中…":"登入中…";
+  try{
+   const cred=reg?await RFDB.registerEmail(em,pw,$("#ln").value.trim()):await RFDB.signInEmail(em,pw);
+   $("#lp").value="";
+   const fu=cred.user;
+   const prof=await RFDB.ensureUserProfile(fu);
+   ME=fu.uid;
+   U[ME]={n:prof.displayName,c:prof.color||CO[hashCode(fu.uid)%CO.length],email:prof.email,id:fu.uid};
+   renderAv();$("#hi").textContent=ROLE==="t"?"老師，你好":"嗨，"+U[ME].n;$("#form").classList.toggle("hide",ROLE==="t");$("#tnote").classList.toggle("hide",ROLE!=="t");
+   const qs=new URLSearchParams(location.search),join=qs.get("join");
+   if(join&&join.includes(":")){const[pid,token]=join.split(":");try{await RFDB.redeemInvite(pid,token,ME,myProfile());history.replaceState(null,"",location.pathname)}catch(err){alert("加入專案失敗："+(err?.message||err))}}
+   attachLiveProjects();show("proj");
+  }catch(err){alert((reg?"註冊失敗：":"登入失敗：")+RFDB.authErrorText(err));}
+  finally{b.disabled=$("#reg").disabled=false;b.innerHTML=old}
+  return;
+ }
+ ME=ROLE==="t"?"T":"A";renderAv();$("#hi").textContent=ROLE==="t"?"老師，你好":"嗨，"+U[ME].n;$("#form").classList.toggle("hide",ROLE==="t");$("#tnote").classList.toggle("hide",ROLE!=="t");goHome()};
+function goHome(){renderProj();show("proj")}
+const myProfile=()=>({displayName:U[ME].n,email:U[ME].email,color:U[ME].c});
+// 等 Firebase 連線判斷完成（rf:ready）才開放登入，避免太早按下去而誤入展示模式。
+$("#login").disabled=true;
+function onReady(){$("#login").disabled=false;
+ $("#loginT").textContent=LIVE()?"登入":"進入展示";$("#lf").classList.toggle("hide",!LIVE());$("#lx").classList.toggle("hide",!LIVE());
+ const join=new URLSearchParams(location.search).get("join");
+ $("#mode").textContent=LIVE()?(join?"你收到一份研究邀請，登入後會自動加入。":"已連接 Firebase：資料會即時同步給組員。"):"展示模式：尚未設定 Firebase（src/firebase-config.js），目前使用示範資料，內容不會被儲存。";
+ $("#mode").textContent+="（版本 "+(window.RF_VER||"?")+"）";
+ hwLabel()}
+addEventListener("rf:ready",onReady);
+function attachLiveProjects(){
+ if(unsubProjects)unsubProjects();
+ $("#cnt").textContent="讀取中…";
+ unsubProjects=RFDB.subscribeMyProjects(ME,async(docs)=>{
+  const mapped=await Promise.all(docs.map(async d=>{
+   const mem=await RFDB.getMembers(d.id);
+   mem.forEach(m=>{if(m.uid!==ME)U[m.uid]={n:m.displayName||m.email||"組員",c:m.color||CO[hashCode(m.uid)%CO.length],email:m.email||"",id:m.uid}});
+   const ORD={owner:0,editor:1,viewer:2,teacher:3};mem.sort((a,b)=>(ORD[a.role]??9)-(ORD[b.role]??9));
+   // 沿用同一個本地 project 物件（畫布、Agent 狀態、復原歷史都掛在上面），只更新來自 Firestore 的欄位
+   const q=projects.find(x=>x.fid===d.id)||mkP({fid:d.id,ver:0,objs:[]});
+   return Object.assign(q,{name:d.name,course:d.course||"",req:d.teacherReq||"",due:d.dueDate||"",field:d.field||"",reportType:d.reportType||"",reportUrl:d.reportUrl||"",
+    LV:Number.isInteger(d.aiLevel)?d.aiLevel:2,members:mem.map(m=>({u:m.uid,role:CAP(m.role),duty:m.task||""}))});
+  }));
+  const inWs=!$("#v-ws").classList.contains("hide");
+  projects.length=0;projects.push(...mapped);
+  if(p&&!mapped.includes(p)){detachLive(p);p=null;if(inWs){alert("你已經不是這個研究專案的成員。");show("proj")}}
+  renderProj();
+  if(p&&inWs){openWsUI();renderPane()}
+ },err=>{console.error(err);$("#cnt").textContent="讀取研究專案失敗，請檢查網路或 Firebase 設定";alert("讀取研究專案失敗："+(err?.message||err))});
+}
+function gapText(q){const s=q.S,c=s.ev.filter(e=>e.k==="c").length;if(q.LV<2)return "此作業未開放 Agent 建議";
+ return s.step===0?"Agent 尚未分析，建議先在畫布討論後執行分析":s.step<5?"Agent 等待小組確認研究範圍與問題":c<3?"Agent 發現：反向證據不足":"Agent 發現：證據已補強，尚待報告架構"}
+function renderProj(){$("#cnt").textContent=`${projects.length} 個進行中的研究`;
+ $("#plist").innerHTML=projects.map((q,i)=>`<div class="row" data-i="${i}" tabindex="0"><div style="flex:1 1 200px"><b>${esc(q.name)}</b><div class="sm mute">${esc(q.course||"未填課程")}　截止 ${q.due||"未設定"}</div></div><span class="tag">${q.stage}</span><span class="stack">${q.members.map(m=>av(m.u,22)).join("")}</span><button data-e="${i}" class="sm" style="padding:3px 10px">${I("gear")}研究檔案</button><div class="gap">${I("spark")}${gapText(q)}</div></div>`).join("");
+ $$("#plist .row").forEach(r=>{r.onclick=()=>openWs(+r.dataset.i);r.onkeydown=e=>e.key==="Enter"&&r.click()});
+ $$("[data-e]").forEach(b=>b.onclick=e=>{e.stopPropagation();openPD(+b.dataset.e)})}
+$("#c2").onclick=async()=>{
+ const invitees=$("#f6").value.split(",").map(x=>x.trim()).filter(Boolean).map(x=>{const[em,...d]=x.split(":");return{email:em.trim(),duty:d.join(":")||""}});
+ if(window.RF_MODE==="live"){
+  const b=$("#c2");b.disabled=true;
+  try{
+   const pid=await RFDB.createProject({name:$("#f1").value||"未命名研究",course:$("#f2").value,teacherReq:$("#f3").value,dueDate:$("#f4").value,field:$("#f5").value},ME,myProfile());
+   traceLive(pid,U[ME].n,"建立研究專案並產生邀請連結。","user");
+   const links=[];
+   for(const inv of invitees){const token=await RFDB.createInvite(pid,"editor",{email:inv.email,task:inv.duty});links.push(`${inv.email} → ${location.origin}${location.pathname}?join=${pid}:${token}`)}
+   attachLiveProjects();show("proj");
+   if(links.length)alert("專案已建立。把下面的邀請連結傳給組員（目前還沒做自動寄信，先手動複製）：\n\n"+links.join("\n"));
+  }catch(err){alert("建立專案失敗："+(err?.message||err));}
+  finally{b.disabled=false}
+  return;
+ }
+ const ms=[{u:ME,role:"Owner",duty:"統整研究問題"}];
+ invitees.forEach((inv,i)=>{const k="P"+(++uid);U[k]={n:inv.email.split("@")[0],c:CO[3+i%2],email:inv.email,id:"待加入",pending:true};ms.push({u:k,role:"Editor",duty:inv.duty})});
+ const q=mkP({name:$("#f1").value||"未命名研究",course:$("#f2").value,req:$("#f3").value,due:$("#f4").value,field:$("#f5").value,members:ms,ver:1,objs:[]});
+ q.trace.push({t:nowT(),w:U[ME].n,x:"建立研究專案並產生邀請連結。",k:"user"});projects.push(q);renderProj();openWs(projects.length-1)};
+
+/* 研究檔案：編輯成員與研究資料 */
+function openPD(i){const q=projects[i],d=$("#pd"),own=(LIVE()||ROLE==="s")&&q.members.some(m=>m.u===ME&&m.role==="Owner"),dis=own?"":"disabled",teach=roleIn(q)==="Teacher";
+ const mem=q.members.map((m,j)=>`<div class="mrow">${av(m.u,28)}<div class="sm"><b>${esc(U[m.u].n)}</b>${U[m.u].pending?' <span class="tag">已邀請</span>':""}</div><select data-mr="${j}" ${m.role==="Teacher"?"disabled":dis}>${(m.role==="Teacher"?["Teacher"]:["Owner","Editor","Viewer"]).map(r=>`<option ${r===m.role?"selected":""}>${r}</option>`).join("")}</select><input data-md="${j}" value="${esc(m.duty)}" placeholder="負責內容" ${dis}><button data-mx="${j}" aria-label="移除成員" ${m.role==="Owner"||m.role==="Teacher"||!own?"disabled":""}>${I("trash")}</button></div>`).join("");
+ d.innerHTML=`<h2>研究檔案</h2>${own?"":'<p class="sm mute">只有 Owner 可以編輯；你目前為唯讀。</p>'}
+ <label>報告／研究名稱</label><input id="d1" value="${esc(q.name)}" ${dis}><label>課程名稱</label><input id="d2" value="${esc(q.course)}" ${dis}><label>老師要求</label><input id="d3" value="${esc(q.req)}" ${dis}>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><label>截止日期</label><input id="d4" type="date" value="${q.due}" ${dis}></div><div><label>研究領域</label><input id="d5" value="${esc(q.field)}" ${dis}></div></div>
+ <h3 style="margin:20px 0 4px">組員與權限</h3><div class="sm mute">Owner：管理專案、邀請與移除成員；Editor：編輯畫布、執行 Agent；Viewer：僅查看。</div>${mem}
+ ${own?`<div class="mrow" style="grid-template-columns:1fr 110px auto"><input id="ne" placeholder="新組員 Email"><select id="nr"><option>Editor</option><option>Viewer</option>${LIVE()?"<option>Teacher</option>":""}</select><button id="na">${I("plus")}邀請</button></div>`:""}
+ <h3 style="margin:20px 0 4px">AI 權限</h3><div class="sm mute">由老師設定 Agent 可以協助到什麼程度；設定由後端強制執行，組員無法自行調整。</div>
+ <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><select id="dlv" ${teach?"":"disabled"} aria-label="AI 權限 Level">${LVN.map((n,l)=>`<option value="${l}" ${l===q.LV?"selected":""}>Level ${l}．${n}</option>`).join("")}</select><span class="sm mute" id="dlvs">${teach?"變更後立即生效":"只有老師可以調整"}</span></div>
+ <h3 style="margin:20px 0 4px">小組報告</h3><div class="sm mute">貼上 PowerPoint（含線上版）、Canva、Google Slides／Docs 等報告連結，之後可在畫布上方一鍵開啟。</div>
+ <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;margin-top:8px"><select id="d6" ${dis}>${["PowerPoint","Canva","Google Slides","Google Docs","Notion","其他"].map(t=>`<option ${t===(q.reportType||"PowerPoint")?"selected":""}>${t}</option>`).join("")}</select><input id="d7" placeholder="https://..." value="${esc(q.reportUrl||"")}" ${dis}></div>
+ <label>邀請連結</label><div style="display:flex;gap:8px"><input readonly value="${LIVE()?esc(q._lastInvite||""):"https://researchflow.app/join/"+q.code}" placeholder="${own?"在上方輸入 Email 並按「邀請」，會產生一次性連結":"只有 Owner 可以產生邀請連結"}" id="lk"><button id="cp">${I("copy")}複製</button></div>
+ <div class="acts" style="justify-content:flex-end;margin-top:22px"><button id="dc">關閉</button>${own?'<button class="pri" id="ds">儲存變更</button>':""}</div>`;
+ const live=LIVE();
+ // 老師調整 AI 權限：live 模式交給 Cloud Function（後端檢查角色並寫入歷程），demo 模式只改本機示範資料
+ $("#dlv").onchange=async e=>{const lv=+e.target.value;
+  if(live){e.target.disabled=true;$("#dlvs").textContent="儲存中…";
+   try{await RFDB.setAiLevel(q.fid,lv,U[ME].n);q.LV=lv;$("#dlvs").textContent="已更新為 Level "+lv}catch(err){e.target.value=q.LV;$("#dlvs").textContent="";alert("設定 AI 權限失敗："+(err?.message||err))}
+   e.target.disabled=false}
+  else{q.LV=lv;q.trace.push({t:nowT(),w:U[ME].n,x:`將 AI 權限設定為 Level ${lv}。`,k:"sys"});$("#dlvs").textContent="已更新為 Level "+lv}
+  renderProj();if(p===q){openWsUI();renderPane()}};
+ const rd=()=>{q.members.forEach((m,j)=>{m.role=d.querySelector(`[data-mr="${j}"]`)?.value||m.role;m.duty=d.querySelector(`[data-md="${j}"]`)?.value??m.duty})};
+ d.querySelectorAll("[data-mx]").forEach(b=>b.onclick=async()=>{rd();const idx=+b.dataset.mx,m=q.members[idx];
+  if(live){b.disabled=true;try{await RFDB.removeMember(q.fid,m.u)}catch(err){alert("移除成員失敗："+(err?.message||err));b.disabled=false;return}q.members.splice(idx,1);openPD(i);return}
+  q.members.splice(idx,1);openPD(i)});
+ $("#na")&&($("#na").onclick=async()=>{const em=$("#ne").value.trim();if(!em)return;rd();
+  if(live){const btn=$("#na");btn.disabled=true;
+   try{
+    const role=($("#nr").value||"Editor").toLowerCase();
+    const token=await RFDB.createInvite(q.fid,role,{email:em});
+    const link=`${location.origin}${location.pathname}?join=${q.fid}:${token}`;
+    try{await navigator.clipboard.writeText(link)}catch(e){}
+    q._lastInvite=link;$("#lk").value=link;$("#ne").value="";
+    alert("邀請連結已產生（已嘗試複製到剪貼簿，目前還沒做自動寄信）：\n"+link+"\n\n請把連結傳給 "+em+"，對方點開連結並登入（沒有帳號就先註冊）後即可加入"+(role==="teacher"?"（老師身分：唯讀檢視，可設定 AI 權限）":"")+"。這個連結只能使用一次。");
+   }catch(err){alert("產生邀請失敗："+(err?.message||err))}
+   finally{btn.disabled=false}
+   return;
+  }
+  const k="P"+(++uid);U[k]={n:em.split("@")[0],c:CO[3],email:em,id:"待加入",pending:true};q.members.push({u:k,role:$("#nr").value,duty:""});openPD(i)});
+ $("#cp").onclick=()=>{try{navigator.clipboard.writeText($("#lk").value)}catch(e){}$("#cp").textContent="已複製"};
+ $("#dc").onclick=()=>d.close();
+ $("#ds")&&($("#ds").onclick=async()=>{rd();
+  const fields={name:$("#d1").value,course:$("#d2").value,req:$("#d3").value,due:$("#d4").value,field:$("#d5").value,reportType:$("#d6")?.value||q.reportType,reportUrl:$("#d7")?.value.trim()||""};
+  if(live){const btn=$("#ds");btn.disabled=true;const old=btn.textContent;btn.textContent="儲存中…";
+   try{
+    await RFDB.updateProjectSettings(q.fid,{name:fields.name,course:fields.course,teacherReq:fields.req,dueDate:fields.due,field:fields.field,reportType:fields.reportType||"",reportUrl:fields.reportUrl||""});
+    await Promise.all(q.members.filter(m=>m.role!=="Teacher").map(m=>RFDB.updateMember(q.fid,m.u,{role:m.role.toLowerCase(),task:m.duty})));
+   }catch(err){alert("儲存失敗（部分變更可能未寫入 Firestore）："+(err?.message||err));btn.disabled=false;btn.textContent=old;return}
+   Object.assign(q,fields);traceLive(q.fid,U[ME].n,"更新研究檔案與組員設定。","user");d.close();renderProj();if(p===q)openWsUI();
+   return;
+  }
+  Object.assign(q,fields);q.trace.push({t:nowT(),w:U[ME].n,x:"更新研究檔案與組員設定。",k:"user"});d.close();renderProj();if(p===q)openWsUI()});
+ d.showModal()}
+$("#cfg").onclick=()=>openPD(projects.indexOf(p));
+$("#rpt").onclick=()=>{if(p.reportUrl){window.open(p.reportUrl,"_blank","noopener");return}
+ openPD(projects.indexOf(p));setTimeout(()=>$("#d7")?.focus(),80)};
+
+/* 工作空間 */
+const cv=$("#cv"),ctx=cv.getContext("2d",{desynchronized:true});
+function openWs(i){p=projects[i];S=p.S;sel.clear();tool="sel";editing={};linkFrom=null;pane="agent";
+ if(!p.H){p.H=[JSON.stringify(p.objs)];p.hi=0}
+ $$(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.p==="agent"));show("ws");openWsUI();resize();if(!p.v)p.v={x:cv.getBoundingClientRect().width*.62,y:cv.getBoundingClientRect().height*.4,z:1};
+ attachLiveObjects(p);attachLiveState(p);draw();renderPane();setStat("已連線，等待操作")}
+function detachLive(proj){if(!proj)return;["_unsubObjs","_unsubState","_unsubTrace"].forEach(k=>{if(proj[k]){proj[k]();proj[k]=null}})}
+function leaveWs(){detachLive(p);goHome()}
+/* 小組共用的 Agent 流程狀態、Canvas 版本、Token 用量、研究歷程（live 模式）：訂閱 Firestore，組員做的每一步大家都看得到 */
+function attachLiveState(proj){if(!LIVE()||!proj.fid||proj._unsubState)return;
+ proj._unsubState=RFDB.subscribeResearchState(proj.fid,st=>{
+  if(st.canvas)proj.ver=st.canvas.ver||0;
+  proj.tok=(st.usage&&st.usage.tok)||0;
+  let changed=false;
+  if(st.current&&st.current.json&&st.current.json!==proj._sj){try{proj.S={...fresh(),...JSON.parse(st.current.json)};proj._sj=st.current.json;changed=true}catch(e){console.error("[ResearchFlow] 研究狀態格式錯誤：",e)}}
+  if(p!==proj)return;
+  S=proj.S;
+  // 使用者正在側欄輸入文字時，只有別人真的改了流程狀態才整個重畫，否則只更新提示，避免把打到一半的字洗掉
+  const typing=document.activeElement&&document.activeElement.tagName==="INPUT"&&$("#pane").contains(document.activeElement);
+  if(changed||!typing)renderPane();else updStale();
+ },err=>{console.error("[ResearchFlow] 讀取研究狀態失敗：",err);setStat("讀取研究狀態失敗，請檢查網路或 Firebase 設定","r")});
+ proj._unsubTrace=RFDB.subscribeTrace(proj.fid,rows=>{
+  proj.trace=rows.slice().reverse().map(r=>({t:new Date(r.at).toTimeString().slice(0,5),w:r.w,x:r.x,k:r.k}));
+  if(p===proj&&pane==="tr")renderPane();
+ },err=>console.error("[ResearchFlow] 讀取研究歷程失敗：",err))}
+function saveS(){if(!LIVE()||!p||!p.fid||!canEdit())return;
+ const j=JSON.stringify(S);if(j===p._sj)return;p._sj=j;
+ RFDB.saveResearchState(p.fid,j,ME).catch(err=>{console.error("[ResearchFlow] 儲存研究狀態失敗：",err);setStat("儲存研究狀態失敗，請檢查網路","r")})}
+$("#back").onclick=leaveWs;
+/* 事件式同步（真資料）：訂閱 Firestore 上的 Canvas Objects，收到更新才重畫，不是持續輪詢 */
+function toRemoteObj(o){const c={...o};delete c.id;
+ if(Array.isArray(c.pts))c.pts=c.pts.map(([x,y,t])=>({x,y,t:t||0}));
+ if(Array.isArray(c.orig))c.orig=c.orig.map(([x,y,t])=>({x,y,t:t||0}));
+ return JSON.parse(JSON.stringify(c))}
+function fromRemoteObj(id,d){const o={...d,id};
+ if(Array.isArray(o.pts))o.pts=o.pts.map(pt=>[pt.x,pt.y,pt.t||0]);
+ if(Array.isArray(o.orig))o.orig=o.orig.map(pt=>[pt.x,pt.y,pt.t||0]);
+ delete o.lastEditedBy;delete o.updatedAt;delete o.createdAt;delete o.createdBy;delete o.version;
+ return o}
+function mergeRemoteDocs(docs){const objs=docs.map(d=>fromRemoteObj(d.id,d));objs.sort((a,b)=>(a.ts||0)-(b.ts||0)||String(a.id).localeCompare(String(b.id)));return objs}
+function canonicalObj(o){return JSON.stringify(o,Object.keys(o).sort())}
+function sameObjList(a,b){if(a.length!==b.length)return false;const byId=new Map(b.map(o=>[o.id,o]));
+ for(const oa of a){const ob=byId.get(oa.id);if(!ob||canonicalObj(oa)!==canonicalObj(ob))return false}
+ return true}
+function diffForPush(localObjs,pushedMap){const nextPushed=new Map(),upserts=[];
+ for(const o of localObjs){const j=JSON.stringify(o);nextPushed.set(o.id,j);if(pushedMap.get(o.id)!==j)upserts.push(o)}
+ const deletes=[];for(const id of pushedMap.keys())if(!nextPushed.has(id))deletes.push(id);
+ return{upserts,deletes,nextPushed}}
+function attachLiveObjects(proj){if(window.RF_MODE!=="live"||!proj.fid||proj._unsubObjs)return;
+ proj._pushed=proj._pushed||new Map();
+ proj._unsubObjs=RFDB.subscribeCanvasObjects(proj.fid,docs=>{
+  if(p!==proj)return; // 已經切換到別的研究專案，忽略這個舊訂閱送回來的資料
+  if(cur||dm)return; // 使用者正在畫線／拖曳／框選時，先不要用遠端快照打斷目前操作
+  const objs=mergeRemoteDocs(docs);
+  if(proj._everLoaded&&sameObjList(objs,proj.objs))return; // 這次只是我們自己剛寫入的 echo，內容沒有新資訊：不要多推一筆復原歷史，否則「返回上一個操作」會要按兩次才看到效果
+  proj.objs=objs;
+  proj._pushed=new Map(objs.map(o=>[o.id,JSON.stringify(o)]));
+  if(!proj._everLoaded){proj.H=[JSON.stringify(objs)];proj.hi=0;proj._everLoaded=true}
+  else{proj.H=proj.H.slice(0,proj.hi+1);proj.H.push(JSON.stringify(objs));proj.hi=proj.H.length-1}
+  draw();insp();renderPane()
+ },err=>{console.error("[ResearchFlow] 讀取畫布物件失敗：",err);setStat("讀取畫布物件失敗，請檢查網路或 Firebase 設定","r")})}
+// bump：這次同步算不算「一次畫布修改」（要不要讓共用的 Canvas 版本號 +1）。使用者的操作（op／復原／重做）算；
+// Agent 只是在物件上標記「已讀取／已確認／辨識結果」時不算，否則剛分析完就會被提示「畫布有新修改」。
+function syncObjsLive(bump=true){if(!LIVE()||!p||!p.fid||!canEdit())return;
+ p._pushed=p._pushed||new Map();
+ const{upserts,deletes,nextPushed}=diffForPush(p.objs,p._pushed);
+ p._pushed=nextPushed;
+ if(bump)RFDB.bumpCanvasVersion(p.fid).catch(err=>console.error("[ResearchFlow] 更新 Canvas 版本失敗：",err));
+ upserts.forEach(o=>RFDB.setCanvasObject(p.fid,o.id,toRemoteObj(o),ME).catch(err=>console.error("[ResearchFlow] 同步畫布物件失敗：",err)));
+ deletes.forEach(id=>RFDB.deleteCanvasObject(p.fid,id).catch(err=>console.error("[ResearchFlow] 刪除畫布物件失敗：",err)))}
+function openWsUI(){$("#pt").textContent=p.name;$("#pst").textContent=p.stage;$("#rolelab").textContent=isT()?"老師：唯讀檢視．AI 權限 Level "+p.LV:myRole()==="Viewer"?"Viewer：唯讀":"AI 權限 Level "+p.LV;
+ $("#pres").innerHTML=p.members.filter(m=>!U[m.u].pending).map(m=>av(m.u,26)).join("");
+ $("#rpt").innerHTML=`${I("ext")}${p.reportUrl?(p.reportType||"報告"):"小組報告"}`;
+ $("#rpt").title=p.reportUrl?"開啟「"+(p.reportType||"報告")+"」："+p.reportUrl:"尚未設定報告連結，點一下即可加入";
+ $$(".tools button:not(#undo):not(#redo)").forEach(b=>b.disabled=!canEdit()&&b.dataset.t&&!["hand","sel"].includes(b.dataset.t));$("#undo").disabled=$("#redo").disabled=!canEdit();$("#sim").classList.toggle("hide",isT()||LIVE())}
+function resize(){const r=$("#cvw").getBoundingClientRect(),d=devicePixelRatio||1;cv.width=r.width*d;cv.height=r.height*d;cv.style.width=r.width+"px";cv.style.height=r.height+"px";p&&draw()}
+addEventListener("resize",resize);
+const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function bbox(o){if(o.type==="text"){ctx.font='15px "Noto Sans TC",sans-serif';return{x:o.x,y:o.y-19,w:ctx.measureText(o.text).width+14,h:28}}
+ const xs=o.pts.map(q=>q[0]),ys=o.pts.map(q=>q[1]),pd=o.w+4;return{x:Math.min(...xs)-pd,y:Math.min(...ys)-pd,w:Math.max(...xs)-Math.min(...xs)+2*pd,h:Math.max(...ys)-Math.min(...ys)+2*pd}}
+const ctr=o=>{const b=bbox(o);return[b.x+b.w/2,b.y+b.h/2]};
+function draw(){if(!p||!p.v)return;const r=$("#cvw").getBoundingClientRect(),d=devicePixelRatio||1,v=p.v,fg=cssv("--fg"),ln=cssv("--line"),ac=cssv("--ac");
+ ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,r.width,r.height);
+ const g=Math.max(24*v.z,12),ox=((v.x%g)+g)%g,oy=((v.y%g)+g)%g;ctx.fillStyle=ln;for(let x=ox;x<r.width;x+=g)for(let y=oy;y<r.height;y+=g)ctx.fillRect(x,y,1.6,1.6);
+ ctx.setTransform(d*v.z,0,0,d*v.z,d*v.x,d*v.y);ctx.lineCap=ctx.lineJoin="round";
+ for(const o of p.objs.filter(o=>o.type==="link")){const a=getO(o.a),b=getO(o.b);if(!a||!b)continue;const[x1,y1]=ctr(a),[x2,y2]=ctr(b);ctx.strokeStyle=fg;ctx.fillStyle=fg;ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();const an=Math.atan2(y2-y1,x2-x1),mx=(x1+x2)/2,my=(y1+y2)/2;ctx.beginPath();ctx.moveTo(mx,my);ctx.lineTo(mx-9*Math.cos(an-.4),my-9*Math.sin(an-.4));ctx.lineTo(mx-9*Math.cos(an+.4),my-9*Math.sin(an+.4));ctx.fill()}
+ for(const o of p.objs){if(o.type==="link")continue;const col=U[o.by]?.c||fg;
+  if(o.showOrig&&o.orig){ctx.strokeStyle=col;ctx.globalAlpha=.35;ctx.lineWidth=2.5;ctx.setLineDash([4,4]);ctx.beginPath();o.orig.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1}
+  if(o.type==="text"){const b=bbox(o);ctx.font='15px "Noto Sans TC",sans-serif';ctx.fillStyle=fg;ctx.fillText(o.text,o.x+7,o.y);ctx.strokeStyle=col;ctx.lineWidth=1.2;ctx.beginPath();ctx.roundRect(b.x,b.y,b.w,b.h,8);ctx.stroke();ctx.fillStyle=col;ctx.font="11px sans-serif";ctx.fillText(U[o.by]?.n+(o.tag?"・"+TAGS[o.tag]:"")+(o.stage?"・"+o.stage:""),b.x+2,b.y-4);
+   if(editing[o.id]){ctx.fillStyle=U[editing[o.id]].c;ctx.fillText(U[editing[o.id]].n+" 正在編輯此內容",b.x+2,b.y+b.h+13)}}
+  else{ctx.strokeStyle=col;ctx.lineWidth=o.w;ctx.beginPath();o.pts.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke()}
+  if(sel.has(o.id)||linkFrom===o.id){const b=bbox(o);ctx.strokeStyle=ac;ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.strokeRect(b.x-3,b.y-3,b.w+6,b.h+6);ctx.setLineDash([])}}
+ if(cur){ctx.strokeStyle=U[ME].c;ctx.lineWidth=+$("#pw").value;ctx.beginPath();cur.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke()}
+ if(mq){ctx.strokeStyle=ac;ctx.lineWidth=1/v.z;ctx.strokeRect(mq[0],mq[1],mq[2]-mq[0],mq[3]-mq[1])}
+ drawHW();$("#zl").textContent=Math.round(v.z*100)+"%"}
+let cur=null,mq=null,dm=null,last=null,moved=false,space=false;
+const toW=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left-p.v.x)/p.v.z,(e.clientY-r.top-p.v.y)/p.v.z]};
+const inB=(q,b)=>q[0]>=b.x&&q[0]<=b.x+b.w&&q[1]>=b.y&&q[1]<=b.y+b.h;
+const hit=q=>[...p.objs].reverse().find(o=>o.type!=="link"&&inB(q,bbox(o)));
+const dseg=(q,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((q[0]-a[0])*dx+(q[1]-a[1])*dy)/(dx*dx+dy*dy||1)));return Math.hypot(q[0]-a[0]-t*dx,q[1]-a[1]-t*dy)};
+function eraseAt(q){const t=8/p.v.z+4;const o=[...p.objs].reverse().find(o=>o.type==="link"?(getO(o.a)&&getO(o.b)&&dseg(q,ctr(getO(o.a)),ctr(getO(o.b)))<t):o.type==="stroke"?o.pts.some(z=>Math.hypot(z[0]-q[0],z[1]-q[1])<t+o.w):inB(q,bbox(o)));
+ if(o){p.objs=p.objs.filter(x=>x!==o&&x.a!==o.id&&x.b!==o.id);sel.delete(o.id);op("刪除物件")}}
+const grpIds=o=>o.group?p.objs.filter(x=>x.group===o.group).map(x=>x.id):[o.id];
+cv.onpointerdown=e=>{e.preventDefault();if(e.pointerType==="pen")penSeen=true;else if(penSeen&&tool==="pen"&&e.pointerType==="touch")return;cv.setPointerCapture(e.pointerId);const q=toW(e);last=[e.clientX,e.clientY];moved=false;
+ if(tool==="hand"||e.button===1||space){dm="pan";return}
+ if(!canEdit())return;
+ if(tool==="pen")cur=[[q[0],q[1],e.timeStamp]];
+ else if(tool==="txt")openEd(null,q);
+ else if(tool==="era")eraseAt(q);
+ else if(tool==="link"){const o=hit(q);if(!o)return;if(!linkFrom){linkFrom=o.id}else if(linkFrom!==o.id){p.objs.push(mkO({type:"link",by:ME,a:linkFrom,b:o.id}));linkFrom=null;op("建立內容之間的關係連線")}draw()}
+ else{const o=hit(q);if(o){if(!sel.has(o.id)){if(!e.shiftKey)sel.clear();grpIds(o).forEach(i=>sel.add(i))}dm="move"}else{if(!e.shiftKey)sel.clear();mq=[...q,...q];dm="mq"}insp();draw()}};
+cv.onpointermove=e=>{if(!p)return;const q=toW(e);
+ if(dm==="pan"){p.v.x+=e.clientX-last[0];p.v.y+=e.clientY-last[1];last=[e.clientX,e.clientY];draw()}
+ else if(cur){for(const c of(e.getCoalescedEvents?e.getCoalescedEvents():[e])){const w=toW(c);cur.push([w[0],w[1],c.timeStamp])}rdraw()}
+ else if(dm==="move"){const dx=(e.clientX-last[0])/p.v.z,dy=(e.clientY-last[1])/p.v.z;last=[e.clientX,e.clientY];moved=true;
+  sel.forEach(id=>{const o=getO(id);if(!o)return;if(o.type==="text"){o.x+=dx;o.y+=dy}else{o.pts=o.pts.map(z=>[z[0]+dx,z[1]+dy]);o.orig&&(o.orig=o.orig.map(z=>[z[0]+dx,z[1]+dy]))}});draw()}
+ else if(dm==="mq"){mq[2]=q[0];mq[3]=q[1];draw()}};
+cv.onpointerup=()=>{ // 事件式同步：完成操作後才傳送
+ if(cur){if(cur.length>1){const so=mkO({type:"stroke",by:ME,pts:cur,w:+$("#pw").value});p.objs.push(so);op("完成一筆手寫（Pencil Up 後同步完整 Stroke）");queueHW(so)}cur=null}
+ else if(dm==="move"&&moved){sel.forEach(id=>{const o=getO(id);if(o){o.mod=ME;o.ver++}});op("移動物件（放開後同步最終位置）")}
+ else if(dm==="mq"){const x1=Math.min(mq[0],mq[2]),x2=Math.max(mq[0],mq[2]),y1=Math.min(mq[1],mq[3]),y2=Math.max(mq[1],mq[3]);
+  p.objs.forEach(o=>{if(o.type==="link")return;const b=bbox(o);if(b.x<x2&&b.x+b.w>x1&&b.y<y2&&b.y+b.h>y1)grpIds(o).forEach(i=>sel.add(i))});mq=null}
+ dm=null;insp();draw()};
+cv.addEventListener("wheel",e=>{e.preventDefault();if(!p)return;const v=p.v;if(e.ctrlKey||e.metaKey)zoomAt(e.deltaY<0?1.1:1/1.1,e.clientX-cv.getBoundingClientRect().left,e.clientY-cv.getBoundingClientRect().top);else{v.x-=e.deltaX;v.y-=e.deltaY}draw()},{passive:false});
+function zoomAt(f,sx,sy){const v=p.v,z=Math.max(.2,Math.min(4,v.z*f)),k=z/v.z;v.x=sx-(sx-v.x)*k;v.y=sy-(sy-v.y)*k;v.z=z}
+$("#zi").onclick=()=>{const r=cv.getBoundingClientRect();zoomAt(1.2,r.width/2,r.height/2);draw()};$("#zo").onclick=()=>{const r=cv.getBoundingClientRect();zoomAt(1/1.2,r.width/2,r.height/2);draw()};
+$("#zr").onclick=()=>{const r=cv.getBoundingClientRect();p.v={x:r.width*.62,y:r.height*.4,z:1};draw()};
+$$(".tools [data-t]").forEach(b=>b.onclick=()=>{tool=b.dataset.t;linkFrom=null;$$(".tools [data-t]").forEach(x=>x.classList.toggle("on",x===b));cv.style.cursor=tool==="sel"?"default":tool==="hand"?"grab":"crosshair";draw()});
+function openEd(o,q){const i=document.createElement("input"),z=p.v.z;i.className="ti";i.value=o?o.text:"";i.style.left=(q[0]*z+p.v.x)+"px";i.style.top=(q[1]*z+p.v.y-16)+"px";$("#cvw").appendChild(i);i.focus();
+ if(o){editing[o.id]=ME;setStat("編輯開始：已通知組員「"+U[ME].n+" 正在編輯此內容」");draw()}
+ let done=false;const fin=()=>{if(done)return;done=true;const t=i.value.trim();i.remove();
+  if(o){delete editing[o.id];if(t&&t!==o.text){o.text=t;o.mod=ME;o.ver++;op("完成編輯文字（失焦後同步）")}else{draw()}}
+  else if(t){p.objs.push(mkO({type:"text",by:ME,x:q[0],y:q[1],text:t}));op("新增文字方塊（完成編輯後同步）")}};
+ i.onblur=fin;i.onkeydown=e=>{if(e.key==="Enter")fin();if(e.key==="Escape"){i.value=o?o.text:"";fin()}}}
+cv.ondblclick=e=>{if(!canEdit())return;const q=toW(e),o=hit(q);if(o&&o.type==="text")openEd(o,[o.x,o.y])};
+addEventListener("keydown",e=>{if(!p||$("#v-ws").classList.contains("hide")||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;
+ if(e.key===" "){space=true;e.preventDefault()}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();e.shiftKey?redo():undo()}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){e.preventDefault();redo()}
+ if((e.key==="Delete"||e.key==="Backspace")&&sel.size&&canEdit())delSel()});
+addEventListener("keyup",e=>{if(e.key===" ")space=false});
+
+/* 事件式同步、返回上一個操作 */
+function setStat(t,c="g"){$("#sy").innerHTML=`<i class="dot ${c}"></i>${esc(t)}`}
+function sync(label,by){const n=p.members.filter(m=>!U[m.u].pending).length-1;setStat("傳送完成操作至伺服器…","y");
+ setTimeout(()=>setStat(`已儲存 v${p.ver}…`,"y"),140);setTimeout(()=>setStat(LIVE()?`已同步 v${p.ver} 至雲端，${n} 位組員會即時看到`:by===ME?`已同步 v${p.ver}，已通知 ${n} 位在線組員`:`收到 ${U[by].n} 的更新 v${p.ver}`),320);
+ log(U[by].n,label,"sync")}
+function op(label,by=ME){p.ver++;p.H=p.H.slice(0,p.hi+1);p.H.push(JSON.stringify(p.objs));p.hi=p.H.length-1;sync(label,by);draw();insp();updStale();syncObjsLive()}
+function undo(){if(!canEdit()||p.hi<=0)return;p.hi--;p.objs=JSON.parse(p.H[p.hi]);sel.clear();p.ver++;sync("返回上一個操作",ME);draw();insp();updStale();syncObjsLive()}
+function redo(){if(!canEdit()||p.hi>=p.H.length-1)return;p.hi++;p.objs=JSON.parse(p.H[p.hi]);sel.clear();p.ver++;sync("取消返回，重做操作",ME);draw();insp();updStale();syncObjsLive()}
+$("#undo").onclick=undo;$("#redo").onclick=redo;
+$("#sim").onclick=()=>{const t=p.objs.filter(o=>o.type==="text")[1]||p.objs.find(o=>o.type==="text");
+ if(t){editing[t.id]="B";draw();setStat("Fanny 正在編輯此內容","y")}
+ setTimeout(()=>{if(t){delete editing[t.id];t.text+="（需區分短期與長期）";t.mod="B";t.ver++;op("Fanny 完成編輯文字","B")}
+  setTimeout(()=>{p.objs.push(mkO({type:"text",by:"C",x:-300,y:110+p.objs.length*8,text:"AI 依賴的測量方式各研究不同。",tag:"question"}));op("小明 新增待驗證問題","C")},900)},1600)};
+
+/* 選取檢視與物件屬性 */
+function delSel(){p.objs=p.objs.filter(o=>!sel.has(o.id)&&!sel.has(o.a)&&!sel.has(o.b));sel.clear();op("刪除選取物件")}
+function insp(){const el=$("#insp");if(!sel.size||!p){el.classList.add("hide");return}
+ const os=[...sel].map(getO).filter(Boolean),ed=canEdit(),dis=ed?"":"disabled";
+ let h=`<div class="ib"><b>已選取 ${os.length} 項</b><button data-x="grp" ${dis}>${I("grp")}群組</button><button data-x="ung" ${dis}>取消群組</button><button data-x="dup" ${dis}>${I("copy")}複製</button><button data-x="del" ${dis}>${I("trash")}刪除</button>
+ <select data-x="tag" ${dis} aria-label="標籤"><option value="">標籤</option>${Object.entries(TAGS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select><select data-x="stage" ${dis} aria-label="研究階段"><option value="">研究階段</option>${STG.map(s=>`<option>${s}</option>`).join("")}</select></div>`;
+ if(os.length===1){const o=os[0];h+=`<div class="kv"><span>建立者 ${esc(U[o.by].n)}</span><span>最後修改 ${esc(U[o.mod].n)}</span><span>物件版本 v${o.ver}</span><span>${o.read?"已被 Agent 讀取":"尚未被 Agent 讀取"}</span><span>${o.conf?"使用者已確認":"AI 讀取尚未確認"}</span></div>`;
+  if(o.type==="stroke"||o.orig)h+=`<div style="display:flex;gap:6px"><input data-x="ai" value="${esc(o.aiRead)}" placeholder="AI 讀取結果（可修正）" ${dis}>${o.type==="stroke"?`<button data-x="conv" ${dis||!o.aiRead?"disabled":""}>轉為文字</button>`:`<button data-x="orig">${o.showOrig?"隱藏":"對照"}原始手寫</button>`}</div>`;
+  h+=`<div>${[["conf","使用者已確認"],["inRQ","納入研究問題"],["inKW","納入搜尋關鍵字"],["ans","為聚焦提問的回應"]].map(([k,l])=>`<label><input type="checkbox" data-c="${k}" ${o[k]?"checked":""} ${dis}>${l}</label>`).join("")}</div>`}
+ el.innerHTML=h;el.classList.remove("hide");
+ const tg=el.querySelector('[data-x=tag]'),sg=el.querySelector('[data-x=stage]');if(os.length===1){tg.value=os[0].tag||"";sg.value=os[0].stage||""}
+ const each=f=>{os.forEach(o=>{f(o);o.mod=ME;o.ver++})};
+ el.querySelectorAll("button[data-x]").forEach(b=>b.onclick=()=>{const x=b.dataset.x;
+  if(x==="del")delSel();
+  if(x==="grp"){const g="g"+(++uid);each(o=>o.group=g);op("將物件群組")}
+  if(x==="ung"){each(o=>o.group="");op("取消群組")}
+  if(x==="dup"){const n=os.map(o=>mkO({...JSON.parse(JSON.stringify(o)),id:undefined,by:ME,group:"",read:false,conf:false,...(o.type==="text"?{x:o.x+24,y:o.y+24}:{pts:o.pts.map(z=>[z[0]+24,z[1]+24])})}));n.forEach((o,i)=>o.id=++uid);p.objs.push(...n);sel.clear();n.forEach(o=>sel.add(o.id));op("複製物件")}
+  if(x==="conv"){const o=os[0];o.orig=o.pts;o.showOrig=true;const b=bbox(o);o.type="text";o.text=o.aiRead;o.x=b.x;o.y=b.y+b.h/2+5;delete o.pts;o.mod=ME;o.ver++;op("將手寫內容轉換為可編輯文字（保留原始手寫）")}
+  if(x==="orig"){os[0].showOrig=!os[0].showOrig;insp();draw()}});
+ el.querySelectorAll("select[data-x]").forEach(s=>s.onchange=()=>{const k=s.dataset.x;if(!s.value)return;each(o=>o[k]=s.value);op("修改標籤／研究階段")});
+ el.querySelector("[data-x=ai]")?.addEventListener("change",e=>{each(o=>{o.aiRead=e.target.value;o.conf=false});op("修正 AI 讀取結果")});
+ el.querySelectorAll("[data-c]").forEach(c=>c.onchange=()=>{each(o=>o[c.dataset.c]=c.checked);op("更新物件確認狀態")})}
+
+/* 側欄 */
+$$(".tabs button").forEach(b=>b.onclick=()=>{pane=b.dataset.p;$$(".tabs button").forEach(x=>x.classList.toggle("on",x===b));renderPane()});
+const STEPS=["讀取畫布","確認理解","判定範圍","聚焦提問","確認策略","搜尋證據","整理完成"];
+const Q=[["你想聚焦哪一類學生？","who",["國高中生","大學生","研究生","教師"]],["你想研究哪一種 AI 使用情境？","ctx",["課堂學習輔助","自主學習","寫作與報告","考試準備"]],["你比較想研究哪一種結果？","out",["學習成績","學習效率","批判思考","學術誠信"]]];
+const EV=[{k:"s",t:"Generative AI and information-seeking efficiency in undergraduates",y:2023,p:"大學生",m:"準實驗",f:"AI 輔助組的資料搜尋時間較短。",l:"僅測量搜尋效率，未測學習成果。",d:"間接",c:"AI 搜尋資料速度比較快。",q:"generative AI university students information seeking",sc:"部分重疊（結果指標不同）"},
+{k:"s",t:"Instant AI feedback in self-directed learning",y:2024,p:"大學生",m:"問卷調查",f:"學生自評回饋品質提升。",l:"自我報告，樣本來自單一學校。",d:"直接",c:"AI 可提供即時回饋",q:"AI feedback self-directed learning",sc:"一致"},
+{k:"c",t:"Cognitive offloading with LLM assistants among university students",y:2024,p:"大學生",m:"實驗研究",f:"高度依賴 AI 者在後測中的批判思考表現較低。",l:"實驗時間短。",d:"直接",c:"但是可能產生 AI 依賴。",q:"generative AI cognitive offloading university students",sc:"一致"},
+{k:"c",t:"AI dependency and self-regulated learning",y:2023,p:"大學生",m:"縱貫調查",f:"依賴程度與自主學習策略呈負相關。",l:"為相關性研究。",d:"直接",c:"但是可能產生 AI 依賴。",q:"AI dependency self-directed learning",sc:"一致"},
+{k:"c",t:"Hallucinated references in student use of chatbots",y:2024,p:"高等教育",m:"內容分析",f:"聊天機器人產生的引用中有一部分無法查證。",l:"研究情境為寫作，與自主學習只有部分重疊。",d:"間接",c:"需要確認是否真的提高學習成績。",q:"ChatGPT critical thinking students",sc:"部分重疊（情境不同）",u:1}];
+const RD=[[0,1],[2,3],[4]],RQ=[["generative AI university students self-directed learning","AI feedback learning outcomes"],["generative AI cognitive offloading university students","ChatGPT critical thinking students","AI dependency self-directed learning"],["LLM hallucination citation students"]];
+const NEED={analyze:1,re:1,ok1:1,ask:1,rq:2,myrq:1,go:1,round:1,expand:1,board:2,sum:3,report:99};
+const lockedHTML=()=>`<div class="box"><b>此作業未開放 AI</b><p class="sm mute" style="margin:6px 0 0">老師設定為 Level 0。你們仍可使用共享畫布、專案管理與協作功能。</p></div>`;
+const repBtn=()=>`<div class="box sm" style="margin-top:22px"><div class="mute">目前權限：Level ${p.LV}（${LVN[p.LV]}）</div><div class="acts" style="margin-top:8px"><button data-a="report">${I("file")}請 Agent 完成整份報告</button></div></div>`;
+function stale(){if(!S.ver||S.step<1||p.ver<=S.ver||p.LV===0)return "";const n=p.ver-S.ver;return `<div class="box warn sm">自上次 Agent 分析（v${S.ver}）後，Canvas 已有 ${n} 項新修改。是否分析新的研究內容？<div class="acts"><button class="pri" data-a="re">重新分析新增內容</button></div></div>`}
+function updStale(){const e=$("#stl");if(e){e.innerHTML=stale();bind(e)}}
+function agentHTML(){const s=S.step;
+ const st=["待命，等待你們分析研究方向。","等待你們確認手寫與內容的讀取結果。","研究範圍偏廣，需要先聚焦。","等待你們回答聚焦問題。","等待你們確認研究問題與搜尋策略。",`已搜尋 ${S.rounds}／3 輪，等待你們決定下一步。`,"證據已確認完成，可以開始整理報告。"][s];
+ return `<div class="ah"><span class="ab">${SPARK(26)}</span><div><b>Research Agent</b><div class="sm mute">${st}</div></div></div>
+ <div class="flow">${STEPS.map((x,i)=>`<span class="${i<s?"d":i===s?"c":""}">${x}</span>`).join("")}</div>
+ <div class="hl sm"><span>Canvas 版本</span><span>分析 ${S.ver?"v"+S.ver:"—"}／最新 v${p.ver}</span></div><div class="hl sm"><span>${LIVE()?"搜尋輪數":"Token 用量與搜尋輪數（示範）"}</span><span>${LIVE()?"":S.tok.toLocaleString()+" / 60,000　"}${S.rounds}／3</span></div>
+ <div id="stl">${stale()}</div>`+(busy?`<div class="box sm warn"><b>Agent 處理中</b><div class="mute">${esc(busy)}</div></div>`:"")+(p.LV===0?lockedHTML():body())+repBtn()}
+// 聚焦問題：live 模式用 Agent 針對這份畫布提出的問題（S.qs3），demo 模式用內建範例。格式統一成 [問題, 代號, 選項]
+const QS=()=>S.qs3?S.qs3.map(q=>[q.question,q.key,q.options]):Q;
+function body(){const s=S.step,sc=S.scope;
+ if(s===0)return `<p class="sm mute">Agent 只會讀取你選取的範圍（未選取則讀取整張畫布），並先請你們確認理解結果，確認前不會搜尋。</p><div class="acts"><button class="pri" data-a="analyze" ${canEdit()?"":"disabled"}>${I("spark")}分析目前研究方向</button></div>`;
+ if(s===1){const rd=S.rd.map(getO).filter(Boolean),row=o=>o.type==="link"||o.hwSub?"":`<div class="box sm">${av(o.by,18)} ${o.type==="text"?esc(o.text):`${o.shape?"圖示":"手寫內容"}　<input id="rd${o.id}" value="${esc(o.aiRead)}" aria-label="AI 讀取結果">${(o.alts||[]).length?`<div class="chips" style="margin:6px 0 0"><span class="mute" style="font-size:12px;align-self:center">其他可能：</span>${o.alts.map(x=>`<button data-alt="rd${o.id}" data-v="${esc(x)}">${esc(x)}</button>`).join("")}</div>`:""}`}</div>`;
+  const g=(t,l)=>{const a=rd.filter(o=>t?o.tag===t:!["claim","counter","question"].includes(o.tag));return a.length?`<h3>${l}</h3>`+a.map(row).join(""):""};
+  return `<p class="sm mute">分析範圍：${rd.length} 個物件（Canvas Version ${S.ver}）。手寫內容請確認或直接修正。</p>${g("claim","支持方向")}${g("counter","限制方向")}${g("question","待驗證問題")}${g("","其他內容")}${LIVE()?"":`<div class="box sm"><b>初步研究問題</b><br>生成式 AI 是否能幫助大學生學習？</div>`}<div class="acts"><button class="pri" data-a="ok1">${I("check")}讀取正確</button><button data-a="fix">需要修正</button></div>`}
+ if(s===2){const broad=S.tooBroad!==false,rs=S.scopeReasons||["使用「是否能幫助」等高度概括的問法","未指定研究對象與情境","缺乏明確時間範圍","同時包含效果、風險與學術誠信等不同層次"];
+  return `<h3>Agent 判定：${broad?"研究範圍過於廣泛":"研究範圍已足夠聚焦"}</h3>${S.q0?`<div class="box sm"><b>初步研究問題</b><br>${esc(S.q0)}</div>`:""}${rs.map(x=>`<div class="hl sm"><span>${I(broad?"alert":"check")}${esc(x)}</span></div>`).join("")}<p class="sm mute">${broad?"Agent 不會替你們縮小問題，也不會立刻搜尋，會先提出引導式問題。":"接下來請確認研究問題與搜尋策略；確認之前 Agent 不會搜尋。"}</p><div class="acts"><button class="pri" data-a="ask">${broad&&QS().length?"開始聚焦":"繼續"}</button></div>`}
+ if(s===3)return `<h3>聚焦問題</h3>`+(QS().length?"":`<p class="sm mute">Agent 認為目前的範圍不需要再追問，可以直接進入研究問題。</p>`)+QS().map(q=>`<div class="sm">${esc(q[0])}</div><div class="chips">${q[2].map(x=>`<button data-q="${esc(q[1])}" data-v="${esc(x)}" class="${sc[q[1]]===x?"on":""}">${esc(x)}</button>`).join("")}${LIVE()?`<input data-qo="${esc(q[1])}" value="${esc(sc[q[1]]&&!q[2].includes(sc[q[1]])?sc[q[1]]:"")}" placeholder="其他（自行輸入）" style="width:150px;font-size:13px;padding:3px 10px;border-radius:99px">`:""}</div>`).join("")+(p.LV>=2?`<div class="acts"><button class="pri" data-a="rq" ${QS().some(q=>!sc[q[1]])?"disabled":""}>產生 Research Question</button></div>`:`<div class="sm mute">此作業未開放研究問題建議，請由小組自行撰寫。</div><input id="myrq" placeholder="輸入你們的 Research Question" style="margin-top:8px"><div class="acts"><button class="pri" data-a="myrq" ${QS().some(q=>!sc[q[1]])?"disabled":""}>使用這個研究問題</button></div>`);
+ if(s===4){const rows=S.strat?[...S.strat.map(r=>[r.label,r.value]),["搜尋方式","第 1 輪用關鍵字找支持方向；第 2 輪起加上 negative effects、risks 等用語找反向與限制"]]:[["研究對象",sc.who],["研究工具","生成式 AI"],["研究情境",sc.ctx],["主要結果",sc.out],["限制／反向結果","認知依賴、批判思考"],["時間範圍","2020–2026"],["證據類型","實證研究（實驗、調查、縱貫）"]];
+  return `<h3>Research Question</h3><input id="rqi" value="${esc(S.rq)}"><h3>搜尋關鍵字</h3><div class="chips">${S.kw.map((k,i)=>`<button data-a="kwx" data-k="${i}">${esc(k)} ×</button>`).join("")}</div>${LIVE()?`<p class="sm mute" style="margin:0 0 6px">搜尋會直接使用這些關鍵字。OpenAlex 以英文文獻為主，請確認並補上英文關鍵字（前 4 個會組成查詢）。</p>`:""}<div style="display:flex;gap:6px"><input id="kwi" placeholder="新增關鍵字"><button data-a="kwa">${I("plus")}</button></div>
+  <h3>搜尋策略</h3>${rows.map(r=>`<div class="hl sm"><span>${esc(r[0])}</span><span>${esc(r[1])}</span></div>`).join("")}<p class="sm mute">Agent 會以此建立 Supporting Search 與 Counter / Limiting Search。</p><div class="acts"><button class="pri" data-a="go">${I("search")}確認並開始搜尋</button><button data-a="back3">修改範圍</button></div>`}
+ if(s===5){const c=S.ev.filter(e=>e.k==="c").length,sp=S.ev.filter(e=>e.k==="s").length,uv=S.ev.filter(e=>!e.v).length,balanced=c>=3;
+ return `<h3>搜尋進度</h3>${S.qs.map((q,i)=>`<div class="box sm"><b>第 ${i+1} 輪查詢</b><div class="mute">${q.map(esc).join("<br>")}</div></div>`).join("")}
+ <div class="box sm">${S.msg||"尚未搜尋。"}</div>
+ ${S.rounds===1&&!balanced&&!S.skip?`<div class="box warn sm"><b>Evidence Imbalance</b><br>支持證據 ${sp} 筆，反向證據 ${c} 筆。請選擇下一步：<div class="acts"><button class="pri" data-a="round">重新規劃並搜尋</button><button data-a="board">加入討論板</button><button data-a="kwedit">修改搜尋方向</button><button data-a="skip">暫時略過</button></div></div>`:""}
+ ${balanced?`<div class="box sm" style="border-color:var(--ok)"><b>${I("check")}證據已足夠</b><div class="mute" style="margin-top:4px">支持 ${sp} 筆．反向／限制 ${c} 筆${uv?`，其中 ${uv} 筆來源待驗證`:""}</div></div>`:""}
+ <div class="acts">${!balanced&&(S.rounds!==1||S.skip)&&S.rounds<3?`<button class="pri" data-a="round">執行第 ${S.rounds+1} 輪搜尋</button>`:""}${!balanced&&S.rounds>=3?`<div class="box sm warn">三輪搜尋後仍缺乏足夠的反向證據，是否允許擴大研究範圍？<div class="acts"><button class="pri" data-a="expand">允許擴大</button></div></div>`:""}${balanced&&uv?`<button class="pri" data-a="gotoev">前往證據頁驗證來源</button>`:""}${balanced&&!uv?`<button class="pri" data-a="finishsearch">${I("check")}確認完成，進入整理階段</button>`:""}<button data-a="reset">重新開始分析</button></div>`}
+ return `<h3>${I("check")} 證據蒐集已完成</h3><p class="sm mute">支持與反向證據已足夠，來源皆已驗證。可以切換到「研究狀態」或「健康檢查」確認整體進度，或回到畫布整理論點與結論。</p>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<div class="acts">${p.LV>=3?`<button class="pri" data-a="sum">${I("spark")}產生證據摘要</button>`:""}<button data-a="reopen">重新開啟搜尋</button></div>`}
+function bind(r=document){r.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{S.scope[b.dataset.q]=b.dataset.v;saveS();renderPane()});
+ r.querySelectorAll("[data-alt]").forEach(b=>b.onclick=()=>{const i=document.getElementById(b.dataset.alt);if(i)i.value=b.dataset.v});
+ r.querySelectorAll("[data-qo]").forEach(i=>i.onchange=()=>{const v=i.value.trim();if(v)S.scope[i.dataset.qo]=v;else delete S.scope[i.dataset.qo];saveS();renderPane()});r.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>act(b.dataset.a,b.dataset.k))}
+function health(){const s=S.step,h=[],st=(t,ok,mid,tx)=>h.push([t,ok?"g":mid?"y":"r",tx||(ok?"已完成":mid?"進行中":"尚未完成")]);
+ const sup=S.ev.filter(e=>e.k==="s").length,cn=S.ev.filter(e=>e.k==="c").length,vf=S.ev.filter(e=>e.v).length;
+ st("畫布內容讀取",s>=2,s===1,s>=2?"已確認":"");st("研究範圍判定",s>=3,s===2);st("研究聚焦問題",s>=4,s===3,s>=4?"已回答":"");st("研究問題",s>=5,s===4,s>=5?"已確認":"");st("搜尋關鍵字",s>=5,s===4,s>=5?"已確認":"");st("初步討論",p.objs.length>2,p.objs.length>0);
+ st("支持證據",sup>=2,sup>0);st("反向證據",cn>=3,cn>0,cn>=3?"":cn?"證據不足":"");st("來源驗證",S.ev.length&&vf===S.ev.length,vf>0||S.ev.length>0,S.ev.length?`已驗證 ${vf}／${S.ev.length}`:"");st("補充資料",false,false);st("報告架構",false,false);st("結論",false,false,"由小組自行判斷");return h}
+const stageOf=()=>["畫布討論","畫布讀取確認","範圍聚焦","範圍聚焦","搜尋準備","證據補強","整理階段"][S.step];
+function next(){const c=S.ev.filter(e=>e.k==="c").length;return S.step<1?"在畫布討論後，選取範圍並分析目前研究方向。":S.step<5?"回答 Agent 的確認與聚焦問題。":c<3?"補充與目前研究問題直接相關的反向研究。":S.ev.some(e=>!e.v)?"驗證尚未確認的來源。":"整理報告架構，並由小組形成結論。"}
+function renderPane(){const el=$("#pane");p.stage=S.step?stageOf():"畫布討論";$("#pst").textContent=p.stage;
+ if(pane==="agent")el.innerHTML=agentHTML();
+ if(pane==="ev")el.innerHTML=evHTML();
+ if(pane==="hl"){const rows=health(),H=t=>`<h3>${t}</h3>`;
+  const phases=[["準備階段",rows.slice(0,6)],["證據蒐集",rows.slice(6,9)],["整理與結論",rows.slice(9)]];
+  el.innerHTML=`<div class="stage"><span class="sb">${I("pulse")}</span><div><b>${stageOf()}</b><div class="sm mute" style="margin-top:2px">${p.LV>=2?next():"此作業尚未開放建議"}</div></div></div>`
+   +phases.map(([t,list])=>H(t)+list.map(h=>`<div class="hl"><span>${h[0]}</span><span class="st"><i class="dot ${h[1]}"></i>${h[2]}</span></div>`).join("")).join("")
+   +`<p class="note">狀態依實際完成的里程碑呈現，不使用進度百分比。</p>`}
+ if(pane==="st"){const sc=S.scope,cn=S.ev.filter(e=>e.k==="c").length,su=S.ev.filter(e=>e.k==="s").length,un=p.objs.filter(o=>o.type!=="link"&&!o.conf&&o.type==="stroke").length;
+  const F=(l,v)=>`<div class="hl"><span>${l}</span><span>${Array.isArray(v)?v.map(x=>`<div>${esc(x)}</div>`).join(""):esc(v)}</span></div>`,H=t=>`<h3>${t}</h3>`;
+  el.innerHTML=H("研究主題")+F("研究領域",p.field||"尚未填寫")+F("主題",LIVE()?(S.topic||"尚未分析"):'生成式 AI 與大學生學習')
+   +H("研究問題")+F("最初的提問",LIVE()?(S.q0||"尚未分析"):'生成式 AI 是否能幫助大學生學習？')+F("目前確認的版本",S.step>=5?S.rq:"尚未確認，仍在聚焦中")
+   +(S.step>=5&&LIVE()?F("聚焦問題的回答",QS().length?QS().map(q=>q[0]+" "+(sc[q[1]]||"—")):["不需要額外聚焦"]):S.step>=5?F("聚焦的對象與情境",[`對象：${sc.who}`,`情境：${sc.ctx}`,"工具：生成式 AI"])+F("關注的結果",[`主要結果：${sc.out}`,"同時留意：認知依賴等限制"]):"")
+   +H("證據進度")+F("畫布上的論點",p.objs.filter(o=>o.tag==="claim").length+" 項")+F("支持與反向證據",[`支持證據：${su} 篇`,`反向／限制證據：${cn} 篇`+(S.step>=5&&cn<3?"（Agent 認為還不夠）":"")])+F("已執行的搜尋",S.qs.flat().length+" 條關鍵字")
+   +H("畫布同步狀態")+F("Canvas 版本",`目前 v${p.ver}，Agent 上次分析 ${S.ver?"v"+S.ver:"尚未分析過"}`)+F("已確認的手寫內容",p.objs.filter(o=>o.conf).length+" 項")+F("尚待確認（不列入定論）",un+" 項")
+   +H("團隊")+F("成員與角色",p.members.map(m=>U[m.u].n+"．"+m.role))+F("目前 AI 權限",`Level ${p.LV}．${LVN[p.LV]}`)
+   +H("目前進度")+F("階段",stageOf())+F("建議下一步",p.LV>=2?next():"此作業尚未開放建議")
+   +`<p class="note">這是 Agent 用來記住進度的摘要，之後不用每次重新讀取整張畫布與所有歷史紀錄。</p>`}
+ if(pane==="tr"){el.innerHTML=`<h3>研究歷程</h3><p class="sm mute" style="margin-top:-4px">依時間排序，深色標籤代表由 Agent 產生的內容，淺灰的同步紀錄可略過不看。</p>`
+  +p.trace.slice().reverse().map(t=>{const k=t.k==="ai"?"ai":t.k==="sync"?"sync":t.k==="sys"?"sys":"";
+   return `<div class="hl tt ${k==="sync"?"sync":""}"><span>${t.t}</span><span><div><span class="tag ${k}">${t.k==="ai"?"Agent":t.k==="sync"?"同步":t.k==="sys"?"權限":"學生"}</span>${k!=="sync"?` <b>${esc(t.w)}</b>`:""}</div><div>${esc(t.x)}</div></span></div>`}).join("")}
+ bind(el);el.querySelectorAll("i[data-i]").length&&icons(el);
+ if(busy)el.querySelectorAll("button[data-a],button[data-q]").forEach(b=>b.disabled=true)}
+function evHTML(){if(!S.ev.length)return `<h3>Evidence Map</h3><p class="sm mute">確認研究問題並完成搜尋後，證據會出現在這裡。沒有可驗證來源的資料不會被標記為證據。</p>`;
+ const sp=S.ev.filter(e=>e.k==="s"),cn=S.ev.filter(e=>e.k==="c"),tot=sp.length+cn.length;
+ const src=e=>/^https:\/\//.test(e.url||"")?`<p><a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">開啟原始來源</a>${e.au?"　"+esc(e.au):""}${e.vn?"．"+esc(e.vn):""}</p>`:"";
+ const item=(e,i)=>`<details class="ev ${e.k==="c"?"cn":""} ${e.v?"":"un"}"><summary><b>${esc(e.t)}</b>（${esc(e.y)}）<span class="tag">${LIVE()?"OpenAlex":"示範"}</span></summary>${src(e)}<p>研究對象：${esc(e.p)}　方法：${esc(e.m)}</p><p>${LIVE()?"摘要節錄":"主要發現"}：${esc(e.f)}</p><p>研究限制：${esc(e.l)}</p><p>${e.k==="c"?"相關":"支持"} Claim：${esc(e.c||"—")}</p><p>搜尋關鍵字：${esc(e.q)}</p><p>範圍比對：${esc(e.sc)}　${esc(e.d)}證據${e.u?"　探索性搜尋結果":""}</p><p><i class="dot ${e.v?"g":"y"}"></i>${e.v?"來源已驗證":"來源待驗證，暫不列為研究證據"}</p>${e.auto?`<p><i class="dot y"></i>支持／反向為依摘要用語的初步分類，請閱讀原文後確認或改列</p>`:""}<div class="acts" style="margin-top:6px">${e.auto&&canEdit()?`<button data-a="confirmk" data-k="${i}" style="font-size:12px;padding:2px 9px">確認分類</button>`:""}${LIVE()&&canEdit()?`<button data-a="flip" data-k="${i}" style="font-size:12px;padding:2px 9px">改列為${e.k==="c"?"支持":"反向／限制"}</button>`:""}${e.v?"":`<button data-a="verify" data-k="${i}" style="font-size:12px;padding:2px 9px">驗證來源</button>`}<button data-a="tocv" data-k="${i}" style="font-size:12px;padding:2px 9px" ${canEdit()?"":"disabled"}>加入畫布</button></div></details>`;
+ const li=k=>S.ev.map((e,i)=>e.k===k?item(e,i):"").join("")||`<p class="sm mute">尚無資料</p>`;
+ return `<h3>Evidence Map</h3><div class="box sm"><b>${esc(S.rq||"研究問題")}</b><div class="bar"><i style="width:${sp.length/tot*100}%;background:var(--ok)"></i><i style="width:${cn.length/tot*100}%;background:#e2662b"></i></div><span class="mute">支持 ${sp.length}　限制／反向 ${cn.length}</span></div><h3>支持證據</h3>${li("s")}<h3>限制／反向證據</h3>${li("c")}
+ <div class="acts"><button data-a="sum">產生證據摘要（Level 3）</button></div>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<p class="note">${LIVE()?"文獻書目與摘要來自 OpenAlex 公開學術資料庫。「支持／反向」是 Agent 依摘要用語做的規則式初步分類（未使用生成式 AI），引用前請開啟原始來源，由小組確認。":"示範資料：此原型未連接真實學術資料庫，文獻不代表真實研究。"}</p>`}
+
+/* Agent 行為（AI Harness 權限與人工確認） */
+function act(a,k){const w=U[ME].n,L=p.LV;
+ if(busy)return;
+ // live 模式：需要 AI 的動作交給後端（權限也由後端判斷並留下歷程），其餘純流程動作沿用下面的本機邏輯
+ if(LIVE()&&LIVE_ACTS.has(a)){if(!canEdit()){alert("你的角色為唯讀，無法執行 Agent。");return}actLive(a,w);return}
+ if(L<(NEED[a]||0)){log("Harness",a==="report"?"拒絕 generate_report：此能力未開放，研究結論與報告由學生完成。":`拒絕 ${a}：目前權限 Level ${L} 不允許此操作。`,"sys");alert(a==="report"?"AI Harness 已拒絕：ResearchFlow 不代替學生完成整份報告。":"目前的老師權限設定不允許此操作。");renderPane();return}
+ if(!canEdit()&&a!=="report"){alert("你的角色為唯讀，無法執行 Agent。");return}
+ if(a==="analyze"||a==="re"){const ids=(a==="re"||!sel.size?p.objs:p.objs.filter(o=>sel.has(o.id))).filter(o=>o.type!=="link");S.rd=ids.map(o=>o.id);ids.forEach((o,i)=>{o.read=true;if(o.type==="stroke"&&!o.aiRead&&!o.hwSub)o.aiRead="（未能辨識，請手動輸入）"});S.ver=p.ver;S.step=1;S.tok+=3200;log(w,"選取研究區域並要求 Agent 分析。");log("Agent",`讀取 Canvas Version ${p.ver}（${ids.length} 個物件）。`,"ai")}
+ if(a==="fix"){log(w,"標示 AI 讀取內容需修正；修改畫布後可重新分析。");S.step=0;S.ver=null}
+ if(a==="ok1"){S.rd.map(getO).filter(Boolean).forEach(o=>{if(o.type==="stroke"){const v=$("#rd"+o.id);if(v&&v.value!==o.aiRead)log(w,"修正 AI 對手寫內容的讀取結果。");if(v)o.aiRead=v.value}o.conf=true});S.step=2;S.tok+=900;log(w,"確認 AI 的讀取結果。");log("Agent","判斷 Research Question 過於廣泛。","ai")}
+ if(a==="ask"){S.step=3;S.tok+=900;log("Agent","提出 3 個引導式聚焦問題。","ai")}
+ if(a==="rq"||a==="myrq"){const sc=S.scope;S.rq=a==="myrq"?($("#myrq").value.trim()||"（尚未填寫）"):`${sc.who}在${sc.ctx}情境中使用生成式 AI，對${sc.out}有何影響？同時有哪些限制（如認知依賴）？`;S.kw=["generative AI","student learning",sc.who==="大學生"?"university students":"students","cognitive offloading","critical thinking","AI dependency"];S.step=4;S.tok+=1800;log(a==="rq"?"Agent":w,a==="rq"?"產生 Research Question 與關鍵字草案。":"自行撰寫 Research Question；Agent 產生關鍵字草案。",a==="rq"?"ai":"user")}
+ if(a==="kwx")S.kw.splice(+k,1);
+ if(a==="kwa"){const v=$("#kwi").value.trim();if(v)S.kw.push(v)}
+ if(a==="back3"||a==="kwedit"){S.step=a==="kwedit"?4:3;log(w,a==="kwedit"?"要求修改搜尋方向。":"回到範圍聚焦。")}
+ if(a==="go"){S.rq=$("#rqi")?$("#rqi").value:S.rq;S.step=5;S.msg="尚未搜尋。";log(w,"確認 Research Question、關鍵字與搜尋策略，寫入 Research State。")}
+ if(a==="round"){const ids=RD[S.rounds];S.qs.push(RQ[S.rounds]);S.rounds++;ids.forEach(i=>S.ev.push({...EV[i],v:!EV[i].u,id:i}));S.tok+=6400;
+  const c=S.ev.filter(e=>e.k==="c").length;
+  log("Agent",S.rounds===1?"搜尋 Supporting Evidence。":`建立第 ${S.rounds} 輪搜尋策略並搜尋。`,"ai");S.rounds===1&&log("Agent","發現 Counter Evidence 不足。","ai");S.rounds>1&&log("Agent",`新增 ${ids.length} 篇證據。`,"ai");
+  S.msg=S.rounds===1?"支持證據已找到，但反向證據不足（Evidence Imbalance）。"+(p.LV>=2?"建議改搜 cognitive offloading、AI dependency。":""):c>=3?"已取得反向證據；其中 1 筆研究範圍僅部分重疊，標記為間接證據並待驗證。":"反向證據仍不足。"}
+ if(a==="expand"){S.rounds=2;log(w,"允許擴大研究範圍，追加一輪搜尋。")}
+ if(a==="skip"){S.skip=true;log(w,"暫時略過 Evidence Imbalance 提示。")}
+ if(a==="board"){p.objs.push(mkO({type:"text",by:ME,x:120,y:-100,text:"待討論：反向證據不足，是否補充 cognitive offloading 研究？",tag:"question"}));op("將 Agent 建議加入討論板（經學生確認）");log(w,"將 Agent 建議加入討論板。")}
+ if(a==="flip"||a==="confirmk"){const e=S.ev[+k];if(a==="flip")e.k=e.k==="c"?"s":"c";e.auto=false;log(w,(a==="flip"?"閱讀後將證據改列為"+(e.k==="c"?"反向／限制":"支持"):"確認證據分類")+"："+e.t)}
+ if(a==="verify"){S.ev[+k].v=true;LIVE()?log(w,"開啟原始來源並人工確認："+S.ev[+k].t):log("Agent","驗證來源：符合可查證條件。","ai")}
+ if(a==="tocv"){const e=S.ev[+k];p.objs.push(mkO({type:"text",by:ME,x:120,y:20+p.objs.length*6,text:`〔證據〕${e.t}（${e.y}）`,tag:"evidence"}));op("將 Evidence Card 加入畫布");log(w,"確認並加入 Evidence Card。")}
+ if(a==="gotoev"){pane="ev";log(w,"前往證據頁確認待驗證來源。");renderProj();renderPane();return}
+ if(a==="finishsearch"){S.step=6;S.tok+=600;log(w,"確認證據已足夠，結束搜尋階段。");log("Agent","證據蒐集階段完成。","ai")}
+ if(a==="reopen"){S.step=5;log(w,"重新開啟搜尋，可以再補充證據。")}
+ if(a==="sum"){S.sum=`目前共 ${S.ev.length} 筆資料：支持 ${S.ev.filter(e=>e.k==="s").length} 筆、限制 ${S.ev.filter(e=>e.k==="c").length} 筆；${S.ev.filter(e=>!e.v).length} 筆來源待驗證。結論請由小組自行判斷。`;log("Agent","產生證據摘要（Level 3）。","ai")}
+ if(a==="reset"){S=p.S=fresh()}
+ syncObjsLive(false);saveS();renderProj();renderPane()}
+/* live 模式的 Agent 動作：交給資料層（src/db.mjs → agent-local.mjs：規則式判斷＋OpenAlex）。等待期間 busy 有值，側欄按鈕全部鎖住；
+   失敗（含被 AI Harness 拒絕）時把後端的說明顯示給使用者，流程停在原本的步驟，不會退回內建範例假裝成功。 */
+const LIVE_ACTS=new Set(["ok1","rq","myrq","round","sum","report"]);
+async function actLive(a,w){
+ const items=()=>S.rd.map(getO).filter(o=>o&&o.type!=="link").map(o=>({type:o.type,text:o.type==="text"?o.text:o.aiRead,tag:o.tag}));
+ let label,job;
+ if(a==="ok1"){
+  S.rd.map(getO).filter(Boolean).forEach(o=>{if(o.type==="stroke"){const v=$("#rd"+o.id);if(v&&v.value!==o.aiRead)log(w,"修正 AI 對手寫內容的讀取結果。");if(v)o.aiRead=v.value}o.conf=true});
+  log(w,"確認 AI 的讀取結果。");
+  label="判斷研究範圍中…";
+  job=async()=>{const r=await RFDB.analyzeScope(p.fid,items());
+   Object.assign(S,{topic:r.topic,q0:r.draftQuestion,tooBroad:r.tooBroad,scopeReasons:r.reasons,qs3:r.tooBroad?r.clarifyingQuestions.filter(q=>q.options.length>=2):[],scope:{},step:2})}}
+ if(a==="rq"||a==="myrq"){
+  const own=a==="myrq"?$("#myrq").value.trim():"";
+  if(a==="myrq"&&!own){alert("請先輸入你們的 Research Question。");return}
+  const answers=QS().map(q=>({key:q[1],question:q[0],answer:S.scope[q[1]]})).filter(x=>x.answer);
+  if(own)log(w,"自行撰寫 Research Question。");
+  label="整理研究問題與搜尋策略中…";
+  job=async()=>{const r=await RFDB.proposeQuestion(p.fid,{items:items(),answers,ownQuestion:own});
+   Object.assign(S,{rq:r.researchQuestion,kw:r.keywords,strat:r.strategy,step:4})}}
+ if(a==="round"){
+  // 查詢由小組確認過的關鍵字組成：第 1 輪找支持方向，第 2 輪起加上負面／限制用語找反向方向（見 agent-local.mjs 的 buildQueries）
+  const n=S.rounds;
+  if(!S.kw.length){alert("請先回到上一步新增至少一個英文搜尋關鍵字。");return}
+  label=`第 ${n+1} 輪：搜尋 OpenAlex 學術資料庫中…`;
+  job=async()=>{const r=await RFDB.searchEvidence(p.fid,{keywords:S.kw,round:n,excludeIds:S.ev.map(e=>e.id)});
+   S.qs.push(r.queries);S.rounds++;S.ev.push(...r.evidence);
+   const ns=r.evidence.filter(e=>e.k==="s").length,nc=r.evidence.length-ns,c=S.ev.filter(e=>e.k==="c").length,uv=S.ev.filter(e=>!e.v).length;
+   S.msg=`本輪找到 ${r.scanned} 篇新文獻，初步分類為支持 ${ns} 篇、反向／限制 ${nc} 篇（請到「證據」頁確認分類）。`+(c<3?"反向證據仍不足（Evidence Imbalance）。":"反向證據已達 3 篇。")+(uv?`其中 ${uv} 篇沒有 DOI，標記為來源待驗證。`:"")}}
+ if(a==="sum"){
+  label="整理證據摘要中…";
+  job=async()=>{S.sum=(await RFDB.summarizeEvidence(p.fid,{rq:S.rq,evidence:S.ev})).summary}}
+ if(a==="report"){label="送出請求中…";job=()=>RFDB.generateReport(p.fid)}
+ busy=label;renderPane();
+ try{await job()}
+ catch(err){alert((a==="report"?"AI Harness 已拒絕：\n":"Agent 無法完成這個操作：\n")+(err?.message||err))}
+ finally{busy="";syncObjsLive(false);saveS();renderProj();renderPane()}}
+icons();
+
+/* 手寫辨識：裝置內建 Handwriting API 優先，否則用 Claude 讀取筆跡圖片；辨識結果一律待使用者確認 */
+var HW=null,SAMP=null,hwQ=[],hwT=0,penSeen=false,raf=0;
+function rdraw(){if(!raf)raf=requestAnimationFrame(()=>{raf=0;draw()})}
+let hwErr=""; // 最近一次手寫辨識失敗的原因（顯示在工具列，方便知道是連不上還是認不出來）
+function hwLabel(){const e=$("#hws");if(!e)return;
+ e.textContent=hwErr?"手寫辨識失敗："+hwErr:window.RFINK||HW||SAMP?"手寫與圖示：自動偵測":"手寫辨識：手動輸入";
+ e.title="ResearchFlow "+(window.RF_VER||"")+(hwErr?"　辨識服務連不上時，請在「確認理解」步驟手動輸入":"");e.style.color=hwErr?"var(--bad)":""}
+(async()=>{try{if(navigator.createHandwritingRecognizer)HW=await navigator.createHandwritingRecognizer({languages:["zh-TW","en"]})}catch(e){}
+ try{const sm=window.claude&&await window.claude.use("sample");if(sm){const l=await sm.limits().catch(()=>null);if(l&&l.images)SAMP=sm}}catch(e){}hwLabel()})();
+hwLabel();
+/* 自動偵測：停筆約 1 秒後，把這段時間畫的筆畫當成一組來判斷。
+   先看是不是圖示（圓圈、方框、箭頭、線——純幾何判斷，不連網），並依它跟旁邊內容的位置關係寫成一句話；
+   不是圖示就當成手寫文字送去辨識。緊接著寫在旁邊的字會跟上一組合併重新辨識，所以一句話可以慢慢寫。
+   老師把 AI 權限設為 Level 0 時不做任何自動偵測。結果一律是「待確認」，小組確認後 Agent 才會採用。 */
+let lastHW=null;
+function queueHW(o){if(!canEdit()||p.LV<1||!(window.RFINK||HW||SAMP))return;hwQ.push(o);clearTimeout(hwT);hwT=setTimeout(runHW,900)}
+const hwText=o=>o.type==="text"?o.text:o.type==="stroke"&&!o.hwSub&&!o.shape?o.aiRead:"";
+// 新寫的筆畫是不是接在上一組旁邊（同一行往後寫、直書往下寫，或換到下一行）：距離以字的大小為單位判斷
+function hwNear(a,b){const A=RFINK.boxOf(a.flatMap(o=>o.pts)),B=RFINK.boxOf(b.flatMap(o=>o.pts)),H=Math.max(Math.min(A.w,A.h),Math.min(B.w,B.h),30);
+ const gx=Math.max(B.x-(A.x+A.w),A.x-(B.x+B.w),0),gy=Math.max(B.y-(A.y+A.h),A.y-(B.y+B.h),0);return gx<1.3*H&&gy<0.9*H}
+async function nativeRec(b){const d=HW.startDrawing({recognitionType:"text",inputType:"pen",alternatives:1});try{for(const o of b){const st=new HandwritingStroke();for(const q of o.pts)st.addPoint({x:q[0],y:q[1],t:Math.round(q[2]||0)});d.addStroke(st)}const r=await d.getPrediction();return r&&r[0]?r[0].text:""}finally{d.clear()}}
+async function imgRec(b){const xs=[],ys=[];b.forEach(o=>o.pts.forEach(q=>{xs.push(q[0]);ys.push(q[1])}));
+ const x0=Math.min(...xs),y0=Math.min(...ys),w=Math.max(...xs)-x0||1,h=Math.max(...ys)-y0||1,k=Math.min(900/w,300/h,4),pd=24;
+ const c=document.createElement("canvas");c.width=Math.ceil(w*k+pd*2);c.height=Math.ceil(h*k+pd*2);const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.strokeStyle="#000";g.lineWidth=4;g.lineCap=g.lineJoin="round";
+ b.forEach(o=>{g.beginPath();o.pts.forEach((q,i)=>{const X=(q[0]-x0)*k+pd,Y=(q[1]-y0)*k+pd;i?g.lineTo(X,Y):g.moveTo(X,Y)});g.stroke()});
+ const bl=await new Promise(r=>c.toBlob(r,"image/png"));
+ if(!SAMP){const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(",")[1]);fr.onerror=rej;fr.readAsDataURL(bl)});
+  return((await RFDB.readHandwriting(p.fid,b64)).text||"").trim()}
+ const r=await SAMP("這張圖片是使用者在畫布上的手寫內容（可能是繁體中文、英文或數字）。只輸出辨識到的文字本身，不要任何說明；若不是文字則輸出空字串。",{images:bl,modelTier:"quick",cache:false});return(r.text||"").trim()}
+async function runHW(){const proj=p,INK=window.RFINK;let b=hwQ.splice(0).map(o=>getO(o.id)).filter(Boolean);if(!b.length)return;
+ // 上一組（20 秒內、就在旁邊、還沒被確認）可以接著寫：新筆畫會跟它合併重新辨識
+ const prev=INK&&lastHW&&lastHW.proj===proj&&Date.now()-lastHW.at<20000?lastHW.ids.map(getO).filter(Boolean):null;
+ const joinable=prev&&prev.length===lastHW.ids.length&&!prev[0].conf&&hwNear(prev,b);
+ let shape=INK&&INK.classifyGroup(b.map(o=>o.pts)),desc="";
+ if(shape){const ids=new Set(b.map(o=>o.id)),others=p.objs.filter(o=>!ids.has(o.id)&&hwText(o)).map(o=>({label:hwText(o),box:bbox(o)}));
+  desc=INK.describeShape(shape,others);
+  // 沒有圈到或連到任何內容的線條，如果是緊接在上一組旁邊畫的，其實是字的筆畫（「十」的一橫一豎、句子裡的「一」），不是圖示
+  if(joinable&&desc.startsWith("圖示：")&&(lastHW.shape||Date.now()-lastHW.at<6000))shape=null}
+ if(shape){b.forEach((o,i)=>{if(i)o.hwSub=1;else{o.aiRead=desc;o.shape=shape.kind}});
+  lastHW=desc.startsWith("圖示：")?{proj,ids:b.map(o=>o.id),at:Date.now(),shape:true}:null;draw();insp();syncObjsLive(false);return}
+ if(joinable){prev.forEach(o=>{delete o.shape});b=[...prev,...b]}
+ const ids=b.map(o=>o.id);b.forEach(o=>o.hwBusy=1);draw();let t="";
+ let alts=[];
+ try{if(HW)t=await nativeRec(b);if(!t&&INK){const r=await INK.recognizeInkDetailed(b.map(o=>o.pts));t=r.text;alts=r.alts}if(!t&&SAMP)t=await imgRec(b);hwErr=""}catch(e){console.warn("[ResearchFlow] 手寫辨識失敗：",e?.message||e);hwErr=/Failed to fetch|Load failed|NetworkError/i.test(e?.message||"")?"連不上辨識服務":String(e?.message||e).slice(0,30)}
+ hwLabel();
+ if(p!==proj)return;
+ b=ids.map(getO).filter(Boolean);
+ b.forEach((o,i)=>{delete o.hwBusy;delete o.alts;if(t){if(i){o.hwSub=1;o.aiRead=""}else{o.aiRead=t;delete o.hwSub;if(alts.length)o.alts=alts}}});
+ lastHW=t&&b.length?{proj,ids:b.map(o=>o.id),at:Date.now()}:null;
+ draw();insp();syncObjsLive(false)}
+function drawHW(){if(!p)return;ctx.font="12px 'Noto Sans TC',sans-serif";for(const o of p.objs){if(o.type!=="stroke")continue;if(o.hwBusy||(o.aiRead&&!o.hwSub&&!o.conf)){const b=bbox(o);ctx.fillStyle=o.hwBusy?cssv("--mute"):cssv("--ac");ctx.fillText(o.hwBusy?"辨識中…":"AI 讀取："+o.aiRead+"（待確認）",b.x,b.y+b.h+14)}}}
+cv.addEventListener("contextmenu",e=>e.preventDefault());cv.addEventListener("selectstart",e=>e.preventDefault());cv.addEventListener("touchstart",e=>e.preventDefault(),{passive:false});
+$$(".tabs button").forEach(b=>b.addEventListener("click",()=>{const e=$("#pane");e.classList.remove("fx");void e.offsetWidth;e.classList.add("fx")}));
+</script>
+</body>
+</html>
