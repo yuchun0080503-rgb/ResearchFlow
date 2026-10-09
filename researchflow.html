@@ -237,7 +237,7 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
     </div>
   </div>
   <aside class="side">
-    <div class="tabs" role="tablist"><button data-p="agent" class="on"><i data-i="spark"></i>Agent</button><button data-p="ev"><i data-i="search"></i>證據</button><button data-p="hl"><i data-i="pulse"></i>健康檢查</button><button data-p="st"><i data-i="clip"></i>研究狀態</button><button data-p="tr"><i data-i="clock"></i>歷程</button></div>
+    <div class="tabs" role="tablist"><button data-p="agent" class="on"><i data-i="spark"></i>Agent</button><button data-p="ev"><i data-i="search"></i>證據</button><button data-p="hl"><i data-i="pulse"></i>進度檢核</button><button data-p="st"><i data-i="clip"></i>研究狀態</button><button data-p="tr"><i data-i="clock"></i>歷程</button></div>
     <div class="pane" id="pane"></div>
   </aside>
 </div></section>
@@ -249,7 +249,7 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
 // 不存在或連不上，也只是靜靜留在 demo 模式——下面主程式完全不受影響，不會白屏。
 window.RF_MODE = "demo";
 // 手寫與圖示的自動偵測（src/ink.mjs）跟 Firebase 無關，展示模式也能用；載入失敗就退回手動輸入。
-window.RF_VER = "2026.10.10-3";
+window.RF_VER = "2026.10.10-4";
 // 查證模式的建議、主張轉研究問題、中文轉英文關鍵字都是純函式（src/agent-local.mjs），展示模式也用得到。
 try { window.RFAGENT = await import("./src/agent-local.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 agent-local.mjs：", err?.message || err); }
 try {
@@ -284,7 +284,7 @@ const LOGO=`<svg width="38" height="38" viewBox="0 0 44 44" aria-label="Research
 </svg>`;
 const CO=["#3f63e8","#e2662b","#12a08f","#7c3aed","#be185d"];
 const U={A:{n:"家欣",c:CO[0],email:"jiaxin@gmail.com",id:"RF-U-7F3A21"},B:{n:"Fanny",c:CO[1],email:"fanny@gmail.com",id:"RF-U-2B9C44"},C:{n:"小明",c:CO[2],email:"ming@gmail.com",id:"RF-U-51D0E8"},T:{n:"王老師",c:CO[3],email:"teacher@school.edu",id:"RF-U-9D02AE"}};
-const TAGS={claim:"主張",counter:"反向觀點",question:"待驗證問題",evidence:"證據"},STG=["研究問題","假設","證據","討論"];
+const TAGS={claim:"主張",counter:"反向觀點",question:"待驗證問題",evidence:"證據"},STG=["研究問題","假設","證據","討論","結論"];
 const LVN=["No AI","Research Assistant","Thinking Assistant","Writing Assistant"];
 let ROLE="s",ME="A",p=null,S=null,sel=new Set(),tool="sel",pane="agent",editing={},linkFrom=null,uid=100;
 const fresh=()=>({step:0,ver:null,rd:[],scope:{},rq:"",kw:[],rounds:0,ev:[],msg:"",tok:0,skip:false,qs:[],sum:"",scopeReasons:null,qs3:null,tooBroad:null,topic:"",q0:"",strat:null,sq:[],cq:[],mode:"",claim:"",held:[],gone:[],wantCounter:null,kwEn:{}});
@@ -752,7 +752,7 @@ function body(){const s=S.step,sc=S.scope;
  ${S.rounds===1&&!balanced&&!S.skip?`<div class="box warn sm"><b>Evidence Imbalance</b><br>支持證據 ${sp} 筆，反向證據 ${c} 筆。請選擇下一步：<div class="acts"><button class="pri" data-a="round">重新規劃並搜尋</button><button data-a="board">加入討論板</button><button data-a="kwedit">修改搜尋方向</button><button data-a="skip">暫時略過</button></div></div>`:""}
  ${balanced?`<div class="box sm" style="border-color:var(--ok)"><b>${I("check")}證據已足夠</b><div class="mute" style="margin-top:4px">支持 ${sp} 筆．反向／限制 ${c} 筆${uv?`，其中 ${uv} 筆來源待驗證`:""}</div></div>`:""}
  <div class="acts">${!balanced&&(S.rounds!==1||S.skip)&&S.rounds<3?`<button class="pri" data-a="round">執行第 ${S.rounds+1} 輪搜尋</button>`:""}${!balanced&&S.rounds>=3?`<div class="box sm warn">三輪搜尋後仍缺乏足夠的反向證據，是否允許擴大研究範圍？<div class="acts"><button class="pri" data-a="expand">允許擴大</button></div></div>`:""}${balanced&&uv?`<button class="pri" data-a="gotoev">前往證據頁驗證來源</button>`:""}${balanced&&!uv?`<button class="pri" data-a="finishsearch">${I("check")}確認完成，進入整理階段</button>`:""}<button data-a="reset">重新開始分析</button></div>`}
- return `<h3>${I("check")} 證據蒐集已完成</h3><p class="sm mute">支持與反向證據已足夠，來源皆已驗證。可以切換到「研究狀態」或「健康檢查」確認整體進度，或回到畫布整理論點與結論。</p>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<div class="acts">${p.LV>=3?`<button class="pri" data-a="sum">${I("spark")}產生證據摘要</button>`:""}<button data-a="reopen">重新開啟搜尋</button></div>`}
+ return `<h3>${I("check")} 證據蒐集已完成</h3><p class="sm mute">支持與反向證據已足夠，來源皆已驗證。可以切換到「研究狀態」或「進度檢核」確認整體進度，或回到畫布整理論點與結論。</p>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<div class="acts">${p.LV>=3?`<button class="pri" data-a="sum">${I("spark")}產生證據摘要</button>`:""}<button data-a="reopen">重新開啟搜尋</button></div>`}
 /* 主張論證模式的搜尋頁：只呈現「支持這個主張的證據夠不夠扎實」。不主動提供反面例證——
    先列出主張的潛在問題（看主張的寫法與證據的組成），再問小組要不要另外找反面例證當參考。 */
 function claimStep5(){const sup=S.ev.filter(e=>e.k==="s"),cn=S.ev.filter(e=>e.k==="c"),high=sup.filter(e=>lvOf(e)==="高").length,uv=S.ev.filter(e=>!e.v).length,ok=enoughOf(p),held=(S.held||[]).length;
@@ -772,21 +772,45 @@ function claimStep5(){const sup=S.ev.filter(e=>e.k==="s"),cn=S.ev.filter(e=>e.k=
 function bind(r=document){r.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{S.scope[b.dataset.q]=b.dataset.v;saveS();renderPane()});
  r.querySelectorAll("[data-alt]").forEach(b=>b.onclick=()=>{const i=document.getElementById(b.dataset.alt);if(i)i.value=b.dataset.v});
  r.querySelectorAll("[data-qo]").forEach(i=>i.onchange=()=>{const v=i.value.trim();if(v)S.scope[i.dataset.qo]=v;else delete S.scope[i.dataset.qo];saveS();renderPane()});r.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>act(b.dataset.a,b.dataset.k))}
-function health(){const s=S.step,h=[],st=(t,ok,mid,tx)=>h.push([t,ok?"g":mid?"y":"r",tx||(ok?"已完成":mid?"進行中":"尚未完成")]);
+/* 進度檢核：每一項都是「數得出來的事實」，不評論內容寫得好不好。
+   回傳三組 [標題, 列]；每一列是 [項目, 燈號 g/y/r, 說明, 補充說明的 HTML（可省略）]。
+   整理階段的三項全部依畫布判定——系統讀不到學生放在 Google 文件／Canva 的報告本身。 */
+const SUGGEST_STAGE={question:"研究問題",claim:"假設",evidence:"證據",counter:"討論"}; // 依物件的標籤建議它屬於報告的哪個部分
+const CORE_STAGES=["研究問題","假設","證據","討論"];
+const contentObjs=()=>p.objs.filter(o=>o.type==="text"||(o.type==="stroke"&&!o.hwSub&&!o.shape&&o.aiRead));
+const objLabel=o=>(o.type==="text"?o.text:o.aiRead).slice(0,24);
+// 有沒有用連線接到至少一張證據卡
+const unsupportedClaims=()=>{const ev=new Set(p.objs.filter(o=>o.tag==="evidence").map(o=>o.id)),links=p.objs.filter(o=>o.type==="link");
+ return contentObjs().filter(o=>o.tag==="claim"&&!links.some(l=>(l.a===o.id&&ev.has(l.b))||(l.b===o.id&&ev.has(l.a))))};
+function health(){const s=S.step,mk=()=>{const h=[];return[h,(t,ok,mid,tx,more)=>h.push([t,ok?"g":mid?"y":"r",tx||(ok?"已完成":mid?"進行中":"尚未完成"),more||""])]};
  const sup=S.ev.filter(e=>e.k==="s").length,cn=S.ev.filter(e=>e.k==="c").length,vf=S.ev.filter(e=>e.v).length;
- st("畫布內容讀取",s>=2,s===1,s>=2?"已確認":"");st("研究範圍判定",s>=3,s===2);st("研究聚焦問題",s>=4,s===3,s>=4?"已回答":"");st("研究問題",s>=5,s===4,s>=5?"已確認":"");st("搜尋關鍵字",s>=5,s===4,s>=5?"已確認":"");st("初步討論",p.objs.length>2,p.objs.length>0);
- st("支持證據",sup>=(MODE()==="claim"?3:2),sup>0);if(MODE()==="claim"){st("證據力高的研究",S.ev.some(e=>e.k==="s"&&lvOf(e)==="高"),S.ev.length>0,"");st("主張的潛在問題",S.wantCounter!==null&&S.wantCounter!==undefined,S.rounds>0,S.wantCounter===true?"已檢視，並參考反面例證":S.wantCounter===false?"已檢視":S.rounds?"待檢視":"")}else st("反向證據",cn>=3,cn>0,cn>=3?"":cn?"證據不足":"");st("來源驗證",S.ev.length&&vf===S.ev.length,vf>0||S.ev.length>0,S.ev.length?`已驗證 ${vf}／${S.ev.length}`:"");st("補充資料",false,false);st("報告架構",false,false);st("結論",false,false,"由小組自行判斷");return h}
+ const[prep,st1]=mk(),[evi,st2]=mk(),[fin,st3]=mk();
+ st1("畫布內容讀取",s>=2,s===1,s>=2?"已確認":"");st1("研究範圍判定",s>=3,s===2);st1("研究聚焦問題",s>=4,s===3,s>=4?"已回答":"");st1("研究問題",s>=5,s===4,s>=5?"已確認":"");st1("搜尋關鍵字",s>=5,s===4,s>=5?"已確認":"");st1("初步討論",p.objs.length>2,p.objs.length>0);
+ st2("支持證據",sup>=(MODE()==="claim"?3:2),sup>0);
+ if(MODE()==="claim"){st2("證據力高的研究",S.ev.some(e=>e.k==="s"&&lvOf(e)==="高"),S.ev.length>0,"");st2("主張的潛在問題",S.wantCounter!==null&&S.wantCounter!==undefined,S.rounds>0,S.wantCounter===true?"已檢視，並參考反面例證":S.wantCounter===false?"已檢視":S.rounds?"待檢視":"")}
+ else st2("反向證據",cn>=3,cn>0,cn>=3?"":cn?"證據不足":"");
+ st2("來源驗證",S.ev.length&&vf===S.ev.length,vf>0||S.ev.length>0,S.ev.length?`已驗證 ${vf}／${S.ev.length}`:"");
+ // 補充資料：畫布上每個主張都要連到至少一張證據卡
+ const claims=contentObjs().filter(o=>o.tag==="claim"),lack=unsupportedClaims();
+ st3("補充資料",claims.length>0&&!lack.length,claims.length>lack.length,!claims.length?"畫布上還沒有標為「主張」的內容":lack.length?`${lack.length}／${claims.length} 個主張還沒有證據`:`${claims.length} 個主張都有證據`,
+  lack.length?`<div class="sm mute">還沒有連到證據卡的主張：${lack.slice(0,4).map(o=>"「"+esc(objLabel(o))+"」").join("")}${lack.length>4?"…":""}<br>到「證據」頁按「加入畫布」並選擇要支撐的主張，或用連線工具把主張連到證據卡。</div>`:"");
+ // 報告架構：研究問題／假設／證據／討論四個部分在畫布上都要有內容
+ const have=st=>contentObjs().some(o=>o.stage===st),miss=CORE_STAGES.filter(st=>!have(st)),todo=contentObjs().filter(o=>!o.stage&&SUGGEST_STAGE[o.tag]);
+ st3("報告架構",!miss.length,miss.length<CORE_STAGES.length,miss.length?`缺：${miss.join("、")}`:"四個部分都有內容",
+  (miss.length?`<div class="sm mute">用「選取」工具點畫布上的內容，在出現的「研究階段」選單標出它屬於報告的哪個部分。</div>`:"")
+  +(todo.length&&canEdit()?`<div class="acts" style="margin-top:6px"><button data-a="stages" style="font-size:12.5px;padding:3px 10px">依標籤自動標記 ${todo.length} 項（主張→假設、待驗證問題→研究問題、證據→證據、反向觀點→討論）</button></div>`:""));
+ st3("結論",have("結論"),false,have("結論")?"已撰寫":"尚未撰寫（由小組自行判斷）",have("結論")?"":`<div class="sm mute">把小組的結論寫在畫布上，並把「研究階段」標為「結論」。</div>`);
+ return[["準備階段",prep],["證據蒐集",evi],["整理與結論",fin]]}
 const stageOf=()=>["畫布討論","畫布讀取確認","範圍聚焦","範圍聚焦","搜尋準備","證據補強","整理階段"][S.step];
 function next(){const c=S.ev.filter(e=>e.k==="c").length;return S.step<1?"在畫布討論後，選取範圍並分析目前研究方向。":S.step<5?"回答 Agent 的確認與聚焦問題。":!enoughOf(p)?(MODE()==="claim"?"繼續替這個主張找證據：還需要更多支持的研究，或證據力更高的研究（回顧、實驗）。":"補充與目前研究問題直接相關的反向研究。"):S.ev.some(e=>!e.v)?"驗證尚未確認的來源。":"整理報告架構，並由小組形成結論。"}
 function renderPane(){const el=$("#pane");p.stage=S.step?stageOf():"畫布討論";$("#pst").textContent=p.stage;
  $("#pmode").textContent=MODE_N[MODE()];$("#pmode").className="tag m-"+MODE();
  if(pane==="agent")el.innerHTML=agentHTML();
  if(pane==="ev")el.innerHTML=evHTML();
- if(pane==="hl"){const rows=health(),H=t=>`<h3>${t}</h3>`;
-  const phases=[["準備階段",rows.slice(0,6)],["證據蒐集",rows.slice(6,9)],["整理與結論",rows.slice(9)]];
+ if(pane==="hl"){const H=t=>`<h3>${t}</h3>`;
   el.innerHTML=`<div class="stage"><span class="sb">${I("pulse")}</span><div><b>${stageOf()}</b><div class="sm mute" style="margin-top:2px">${p.LV>=2?next():"此作業尚未開放建議"}</div></div></div>`
-   +phases.map(([t,list])=>H(t)+list.map(h=>`<div class="hl"><span>${h[0]}</span><span class="st"><i class="dot ${h[1]}"></i>${h[2]}</span></div>`).join("")).join("")
-   +`<p class="note">狀態依實際完成的里程碑呈現，不使用進度百分比。</p>`}
+   +health().map(([t,list])=>H(t)+list.map(h=>`<div class="hl"><span>${h[0]}</span><span><span class="st"><i class="dot ${h[1]}"></i>${h[2]}</span>${h[3]}</span></div>`).join("")).join("")
+   +`<p class="note">每一項都依實際完成的事實判定，不使用進度百分比。「整理與結論」看的是畫布上的整理結果；系統讀不到你們放在 Google 文件、Canva 等地方的報告本身，也不評斷內容寫得好不好。</p>`}
  if(pane==="st"){const sc=S.scope,cn=S.ev.filter(e=>e.k==="c").length,su=S.ev.filter(e=>e.k==="s").length,un=p.objs.filter(o=>o.type!=="link"&&!o.conf&&o.type==="stroke").length;
   const F=(l,v)=>`<div class="hl"><span>${l}</span><span>${Array.isArray(v)?v.map(x=>`<div>${esc(x)}</div>`).join(""):esc(v)}</span></div>`,H=t=>`<h3>${t}</h3>`;
   el.innerHTML=H("研究主題")+F("研究領域",p.field||"尚未填寫")+F("主題",LIVE()?(S.topic||"尚未分析"):'生成式 AI 與大學生學習')
@@ -806,8 +830,10 @@ function renderPane(){const el=$("#pane");p.stage=S.step?stageOf():"畫布討論
 const zhMore=()=>{const z=S.kw.filter(hasZh).slice(0,3);return LIVE()&&z.length?`<p class="sm mute" style="margin-top:14px">中文文獻不夠？可以用同樣的關鍵字到 <a href="https://scholar.google.com/scholar?hl=zh-TW&lr=lang_zh-TW&q=${encodeURIComponent(z.join(" "))}" target="_blank" rel="noopener noreferrer">Google 學術搜尋（繁體中文）</a> 自己找，找到的文獻可以用文字工具加到畫布上。</p>`:""};
 function evHTML(){if(!S.ev.length)return `<h3>Evidence Map</h3><p class="sm mute">確認研究問題並完成搜尋後，證據會出現在這裡。沒有可驗證來源的資料不會被標記為證據。</p>`;
  const sp=S.ev.filter(e=>e.k==="s"),cn=S.ev.filter(e=>e.k==="c"),tot=sp.length+cn.length;
+ // 「加入畫布」時可以選這筆證據要支撐哪個主張：預設選主張論證模式正在論證的那個，或證據上記錄的相關論點，否則第一個
+ const claimOpts=contentObjs().filter(o=>o.tag==="claim"),guessClaim=e=>(claimOpts.find(o=>objLabel(o)===(S.claim||"").slice(0,24))||claimOpts.find(o=>e.c&&(o.text||o.aiRead)===e.c)||claimOpts[0]||{}).id;
  const src=e=>/^https:\/\//.test(e.url||"")?`<p><a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">開啟原始來源</a>${e.au?"　"+esc(e.au):""}${e.vn?"．"+esc(e.vn):""}</p>`:"";
- const item=(e,i)=>`<details class="ev ${e.k==="c"?"cn":""} ${e.v?"":"un"}"><summary><b>${esc(e.t)}</b>（${esc(e.y)}）<span class="tag">${LIVE()?"OpenAlex":"示範"}</span>${e.lang==="zh"?' <span class="tag">中文文獻</span>':""}</summary>${src(e)}<p>研究對象：${esc(e.p)}　方法：${esc(e.m)}${e.lv?"　證據力："+esc(e.lv):""}</p><p>${LIVE()?"摘要節錄":"主要發現"}：${esc(e.f)}</p><p>研究限制：${esc(e.l)}</p><p>${e.k==="c"?"相關":"支持"} Claim：${esc(e.c||"—")}</p><p>搜尋關鍵字：${esc(e.q)}</p><p>範圍比對：${esc(e.sc)}　${esc(e.d)}證據${e.u?"　探索性搜尋結果":""}</p><p><i class="dot ${e.v?"g":"y"}"></i>${e.v?"來源已驗證":"來源待驗證，暫不列為研究證據"}</p>${e.auto?`<p><i class="dot y"></i>支持／反向為依摘要用語的初步分類，請閱讀原文後確認或改列</p>`:""}<div class="acts" style="margin-top:6px">${e.auto&&canEdit()?`<button data-a="confirmk" data-k="${i}" style="font-size:12px;padding:2px 9px">確認分類</button>`:""}${LIVE()&&canEdit()?(MODE()==="claim"&&e.k==="s"?`<button data-a="drop" data-k="${i}" style="font-size:12px;padding:2px 9px">不支持這個主張，移除</button>`:`<button data-a="flip" data-k="${i}" style="font-size:12px;padding:2px 9px">改列為${e.k==="c"?"支持":"反向／限制"}</button>`):""}${e.v?"":`<button data-a="verify" data-k="${i}" style="font-size:12px;padding:2px 9px">驗證來源</button>`}<button data-a="tocv" data-k="${i}" style="font-size:12px;padding:2px 9px" ${canEdit()?"":"disabled"}>加入畫布</button></div></details>`;
+ const item=(e,i)=>`<details class="ev ${e.k==="c"?"cn":""} ${e.v?"":"un"}"><summary><b>${esc(e.t)}</b>（${esc(e.y)}）<span class="tag">${LIVE()?"OpenAlex":"示範"}</span>${e.lang==="zh"?' <span class="tag">中文文獻</span>':""}</summary>${src(e)}<p>研究對象：${esc(e.p)}　方法：${esc(e.m)}${e.lv?"　證據力："+esc(e.lv):""}</p><p>${LIVE()?"摘要節錄":"主要發現"}：${esc(e.f)}</p><p>研究限制：${esc(e.l)}</p><p>${e.k==="c"?"相關":"支持"} Claim：${esc(e.c||"—")}</p><p>搜尋關鍵字：${esc(e.q)}</p><p>範圍比對：${esc(e.sc)}　${esc(e.d)}證據${e.u?"　探索性搜尋結果":""}</p><p><i class="dot ${e.v?"g":"y"}"></i>${e.v?"來源已驗證":"來源待驗證，暫不列為研究證據"}</p>${e.auto?`<p><i class="dot y"></i>支持／反向為依摘要用語的初步分類，請閱讀原文後確認或改列</p>`:""}<div class="acts" style="margin-top:6px">${e.auto&&canEdit()?`<button data-a="confirmk" data-k="${i}" style="font-size:12px;padding:2px 9px">確認分類</button>`:""}${LIVE()&&canEdit()?(MODE()==="claim"&&e.k==="s"?`<button data-a="drop" data-k="${i}" style="font-size:12px;padding:2px 9px">不支持這個主張，移除</button>`:`<button data-a="flip" data-k="${i}" style="font-size:12px;padding:2px 9px">改列為${e.k==="c"?"支持":"反向／限制"}</button>`):""}${e.v?"":`<button data-a="verify" data-k="${i}" style="font-size:12px;padding:2px 9px">驗證來源</button>`}${canEdit()&&claimOpts.length?`<select data-ec="${i}" aria-label="這筆證據要支撐哪個主張" style="font-size:12px;padding:2px 6px;max-width:190px"><option value="">不連到主張</option>${claimOpts.map(o=>`<option value="${esc(o.id)}" ${o.id===guessClaim(e)?"selected":""}>支撐：${esc(objLabel(o))}</option>`).join("")}</select>`:""}<button data-a="tocv" data-k="${i}" style="font-size:12px;padding:2px 9px" ${canEdit()?"":"disabled"}>加入畫布</button></div></details>`;
  const li=k=>S.ev.map((e,i)=>e.k===k?item(e,i):"").join("")||`<p class="sm mute">尚無資料</p>`;
  // 主張論證模式：只列支持主張的證據，依證據力分層；反面例證只有小組要求過才出現在最下面
  if(MODE()==="claim"){const sup=S.ev.map((e,i)=>[e,i]).filter(x=>x[0].k==="s"),grp=f=>sup.filter(x=>f(lvOf(x[0]))).map(x=>item(x[0],x[1])).join("")||`<p class="sm mute">尚無資料</p>`;
@@ -861,7 +887,17 @@ function act(a,k){const w=U[ME].n,L=p.LV;
  if(a==="counter"){S.ev.push(...(S.held||[]).map(e=>({...e,k:"c",ref:true})));S.held=[];S.wantCounter=true;log(w,"檢視主張的潛在問題後，要求參考反面例證。")}
  if(a==="flip"||a==="confirmk"){const e=S.ev[+k];if(a==="flip")e.k=e.k==="c"?"s":"c";e.auto=false;log(w,(a==="flip"?"閱讀後將證據改列為"+(e.k==="c"?"反向／限制":"支持"):"確認證據分類")+"："+e.t)}
  if(a==="verify"){S.ev[+k].v=true;LIVE()?log(w,"開啟原始來源並人工確認："+S.ev[+k].t):log("Agent","驗證來源：符合可查證條件。","ai")}
- if(a==="tocv"){const e=S.ev[+k];p.objs.push(mkO({type:"text",by:ME,x:120,y:20+p.objs.length*6,text:`〔證據〕${e.t}（${e.y}）`,tag:"evidence"}));op("將 Evidence Card 加入畫布");log(w,"確認並加入 Evidence Card。")}
+ // 把證據加到畫布：放在它要支撐的主張右邊，並自動連線（「補充資料」就是看每個主張有沒有連到證據卡）
+ if(a==="tocv"){const e=S.ev[+k],sel=document.querySelector(`[data-ec="${k}"]`),claim=sel&&sel.value?getO(sel.value):null;
+  const text=`〔證據〕${e.t}（${e.y}）`;
+  if(p.objs.some(o=>o.tag==="evidence"&&o.text===text&&(!claim||p.objs.some(l=>l.type==="link"&&l.a===claim.id&&l.b===o.id)))){alert("這筆證據已經在畫布上了。");return}
+  let card=p.objs.find(o=>o.tag==="evidence"&&o.text===text);
+  if(!card){const b=claim?bbox(claim):null,n=claim?p.objs.filter(l=>l.type==="link"&&l.a===claim.id).length:0;
+   card=mkO({type:"text",by:ME,x:b?b.x+b.w+70:120,y:b?b.y+19+n*44:20+p.objs.length*6,text,tag:"evidence",stage:"證據"});p.objs.push(card)}
+  if(claim)p.objs.push(mkO({type:"link",by:ME,a:claim.id,b:card.id}));
+  op(claim?"將 Evidence Card 加入畫布並連到主張":"將 Evidence Card 加入畫布");log(w,claim?"確認並加入 Evidence Card，用來支撐主張："+objLabel(claim):"確認並加入 Evidence Card。")}
+ // 進度檢核的「依標籤自動標記」：只標還沒有研究階段的內容，之後仍可以逐一修改
+ if(a==="stages"){const todo=contentObjs().filter(o=>!o.stage&&SUGGEST_STAGE[o.tag]);todo.forEach(o=>{o.stage=SUGGEST_STAGE[o.tag];o.mod=ME;o.ver++});if(todo.length){op("依標籤標記研究階段");log(w,`依標籤自動標記 ${todo.length} 項內容的研究階段。`)}}
  if(a==="gotoev"){pane="ev";log(w,"前往證據頁確認待驗證來源。");renderProj();renderPane();return}
  if(a==="finishsearch"){S.step=6;S.tok+=600;log(w,"確認證據已足夠，結束搜尋階段。");log("Agent","證據蒐集階段完成。","ai")}
  if(a==="reopen"){S.step=5;log(w,"重新開啟搜尋，可以再補充證據。")}
