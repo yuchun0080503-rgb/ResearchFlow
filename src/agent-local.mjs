@@ -127,11 +127,38 @@ export function proposeQuestion({ items, answers, ownQuestion }) {
   return { researchQuestion, keywords, strategy };
 }
 
-// 每一輪要查什麼：第 1 輪找一般／支持方向，第 2 輪刻意找負面與限制，之後做探索性補搜。
-// 一律用「小組目前確認的關鍵字」組成，所以學生在介面上增刪關鍵字會直接改變搜尋結果。
-export function buildQueries(keywords, round) {
+// ---------------- 查證模式 ----------------
+// procon「正反例證模式」：題目本身有正反兩面（利弊、爭議、影響好壞）——刻意同時找支持與反向的證據，要求兩邊平衡。
+// claim 「主張論證模式」：報告是在論證一個主張——針對這一個主張做深度查證：直接證據 → 統整性研究 → 限制與成立條件。
+export const MODES = ['procon', 'claim'];
+const PROCON_CUES = /正反|利弊|優缺|優點.*缺點|好處.*壞處|贊成|反對|爭議|辯論|兩面|是否應該|該不該|應不應該|比較|vs|VS|影響/;
+
+/**
+ * 依專案資料建議預設的查證模式。
+ * @param {string} text 報告名稱＋老師要求＋研究領域
+ * @returns {{mode:'procon'|'claim', reason:string}}
+ */
+export function suggestMode(text) {
+  const hit = String(text || '').match(PROCON_CUES);
+  return hit
+    ? { mode: 'procon', reason: `題目或老師要求裡出現「${hit[0]}」，看起來需要同時呈現正反兩面的證據。` }
+    : { mode: 'claim', reason: '題目看起來是在說明或論證一個主題，不一定有明確的正反兩方；針對你們的主張逐一深入查證會比較實用。' };
+}
+
+// 把「要查證的主張」寫成研究問題的草案
+export const claimQuestion = (claim) => `「${String(claim || '').trim().slice(0, 80)}」這個主張成立嗎？在什麼條件下成立，又有哪些限制？`;
+
+// 每一輪要查什麼。一律用「小組目前確認的關鍵字」組成，所以學生在介面上增刪關鍵字會直接改變搜尋結果。
+//   正反例證模式：第 1 輪找一般／支持方向，第 2 輪刻意找負面與限制，之後做探索性補搜。
+//   主張論證模式：第 1 輪找直接證據，第 2 輪找統整性研究（系統性回顧、後設分析——證據力最高），第 3 輪找限制與反例。
+export function buildQueries(keywords, round, mode = 'procon') {
   const base = (Array.isArray(keywords) ? keywords : []).filter((k) => typeof k === 'string' && k.trim()).slice(0, 4).join(' ');
   if (!base) return { kind: 's', queries: [] };
+  if (mode === 'claim') {
+    if (round === 0) return { kind: 's', queries: [base, `${base} evidence`] };
+    if (round === 1) return { kind: 's', queries: [`${base} systematic review`, `${base} meta-analysis`] };
+    return { kind: 'c', queries: [`${base} limitations`, `${base} null results criticism`] };
+  }
   if (round === 0) return { kind: 's', queries: [base, `${base} benefits effectiveness`] };
   if (round === 1) return { kind: 'c', queries: [`${base} negative effects`, `${base} risks limitations`] };
   return { kind: 'c', queries: [`${base} challenges concerns`, `${base} systematic review`] };
@@ -156,6 +183,9 @@ const POPULATIONS = [
   [/teacher|educator|instructor/i, '教師'],
 ];
 const firstMatch = (table, text) => (table.find(([re]) => re.test(text)) || [null, '摘要未說明'])[1];
+// 證據力：統整多篇研究的回顧最高，其次是有對照的實驗與長期追蹤，問卷與訪談較低；方法不明就標「不明」。
+const LEVELS = { 文獻回顧: '高', 實驗研究: '高', 縱貫研究: '中', 問卷調查: '中', 質性研究: '低' };
+export const evidenceLevel = (method) => LEVELS[method] || '不明';
 const count = (re, text) => (text.match(re) || []).length;
 
 // work：searchLogic.normalizeWork 的輸出；kind：這篇是哪個方向的查詢找到的（'s'／'c'），正負用語一樣多時用它決定。
@@ -170,7 +200,7 @@ export function classifyWork(work, kind, keywords = []) {
   const matched = kws.filter((kw) => text.toLowerCase().includes(kw.toLowerCase())).length;
   return {
     id: work.id, k, t: work.title, y: work.year || '年份不明', au: work.authors.join(', '), vn: work.venue, url: work.url,
-    p: firstMatch(POPULATIONS, text), m: firstMatch(METHODS, text),
+    p: firstMatch(POPULATIONS, text), m: firstMatch(METHODS, text), lv: evidenceLevel(firstMatch(METHODS, text)),
     f: hit.slice(0, 280), l: '尚未判讀：請閱讀原文後由小組補上', c: '', q: work.q,
     sc: kws.length ? `關鍵字符合 ${matched}／${kws.length}` : '未比對',
     d: kws.length && matched >= Math.ceil(kws.length / 2) ? '直接' : '間接',

@@ -60,13 +60,13 @@ export async function proposeQuestion(projectId, { items, answers, ownQuestion }
   return out;
 }
 
-// round：第幾輪（從 0 開始）；keywords：小組目前確認的關鍵字 → {evidence, queries, scanned}
-export async function searchEvidence(projectId, { keywords, round, excludeIds }) {
+// round：第幾輪（從 0 開始）；keywords：小組目前確認的關鍵字；mode：'procon' 正反例證／'claim' 主張論證 → {evidence, queries, scanned}
+export async function searchEvidence(projectId, { keywords, round, excludeIds, mode }) {
   const uid = await guard(projectId, 'searchEvidence');
-  const { kind, queries } = agent.buildQueries(keywords, round);
+  const { kind, queries } = agent.buildQueries(keywords, round, mode);
   const out = await agent.searchEvidence({ queries, kind, keywords, excludeIds });
   const sup = out.evidence.filter((e) => e.k === 's').length;
-  await agentLog(projectId, uid, `第 ${round + 1} 輪搜尋 OpenAlex：找到 ${out.scanned} 篇，初步分類為支持 ${sup} 篇、反向／限制 ${out.scanned - sup} 篇（待小組確認）。`);
+  await agentLog(projectId, uid, `${mode === 'claim' ? '主張論證模式' : '正反例證模式'}第 ${round + 1} 輪搜尋 OpenAlex：找到 ${out.scanned} 篇，初步分類為支持 ${sup} 篇、反向／限制 ${out.scanned - sup} 篇（待小組確認）。`);
   return out;
 }
 
@@ -169,6 +169,7 @@ export async function createProject({ name, course, teacherReq, dueDate, field }
     ownerUid: uid,
     memberUids: [uid],
     aiLevel: 2, // 預設 Thinking Assistant；之後只有老師改得動（firestore.rules）
+    searchMode: '', // 預設查證模式：建立後由 Owner 在小視窗選擇（'procon' 正反例證／'claim' 主張論證）
     createdAt: serverTimestamp(),
   });
   // Owner 的 member 文件跟 project 分兩次寫入（非 batch）：規則要先看到 project.ownerUid 才允許建立 owner 的 member 文件。

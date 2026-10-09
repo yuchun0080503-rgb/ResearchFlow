@@ -76,3 +76,27 @@ test('summarizeEvidence：只報數量與標題，並提醒結論由小組判斷
   assert.match(s, /1 筆來源待驗證/);
   assert.match(s, /結論請由小組自行判斷/);
 });
+
+import { suggestMode, claimQuestion, evidenceLevel } from './agent-local.mjs';
+
+test('suggestMode：題目有正反／利弊／影響等字眼建議正反例證，其餘建議主張論證', () => {
+  assert.equal(suggestMode('社群媒體對青少年的利弊').mode, 'procon');
+  assert.match(suggestMode('AI 對學習的影響 需含正反證據').reason, /「正反」|「影響」/);
+  assert.equal(suggestMode('臺灣茶產業的發展歷程').mode, 'claim');
+  assert.equal(suggestMode('').mode, 'claim');
+});
+
+test('buildQueries：主張論證模式依序找直接證據、統整性研究、限制與反例', () => {
+  const kw = ['sleep', 'academic performance'];
+  assert.deepEqual(buildQueries(kw, 0, 'claim'), { kind: 's', queries: ['sleep academic performance', 'sleep academic performance evidence'] });
+  assert.match(buildQueries(kw, 1, 'claim').queries.join('|'), /systematic review.*meta-analysis/);
+  assert.equal(buildQueries(kw, 2, 'claim').kind, 'c');
+  assert.equal(buildQueries(kw, 1).kind, 'c'); // 沒指定模式＝正反例證：第 2 輪找反向
+});
+
+test('claimQuestion／evidenceLevel：主張轉成研究問題；回顧與實驗的證據力最高', () => {
+  assert.equal(claimQuestion(' 睡眠不足會降低成績 '), '「睡眠不足會降低成績」這個主張成立嗎？在什麼條件下成立，又有哪些限制？');
+  assert.deepEqual(['文獻回顧', '實驗研究', '問卷調查', '質性研究', '摘要未說明'].map(evidenceLevel), ['高', '高', '中', '低', '不明']);
+  const w = { id: 'W1', title: 'A meta-analysis of sleep', year: 2024, doi: 'https://doi.org/1', url: 'https://doi.org/1', authors: [], venue: '', abstract: 'This systematic review found that sleep improved grades in many studies overall.', q: 'q' };
+  assert.equal(classifyWork(w, 's').lv, '高');
+});
