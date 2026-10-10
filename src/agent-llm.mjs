@@ -148,6 +148,21 @@ export async function refineEvidence({ claim, evidence, model = '' }, fetchImpl)
 }
 
 /**
+ * 把一篇文獻的英文摘要整理成中文，讓學生不用讀英文就能判斷這篇需不需要。
+ * @returns {Promise<string>} 兩三句繁體中文；摘要太短或沒有內容時回傳空字串
+ */
+export async function summarizeZh(title, abstract, fetchImpl) {
+  if (clip(abstract, 1200).length < 60) return '';
+  const out = await chatJSON({
+    system: '你是協助學生閱讀英文文獻的研究助理。請把下面這篇文獻的摘要整理成繁體中文，兩到三句、80 字以內，依序說明：研究對象與方法、主要發現。只能根據摘要，不要加入摘要沒有的內容；摘要沒有寫結果就照實說「摘要沒有寫出研究結果」。',
+    user: `標題：${clip(title, 200)}\n摘要：${clip(abstract, 1200)}`,
+    schema: { type: 'object', required: ['zh'], properties: { zh: str } },
+    maxTokens: 200, timeout: 90000,
+  }, fetchImpl);
+  return clip(out.zh, 160);
+}
+
+/**
  * 讀手寫筆跡的圖片。hint 是筆跡辨識服務逐字辨識的結果（可能有錯字、缺字），給模型參考。
  * @returns {Promise<string>} 辨識出的文字；看不出來時回傳空字串
  */

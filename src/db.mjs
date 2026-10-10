@@ -85,7 +85,8 @@ export async function searchEvidence(projectId, { keywords, keywordsZh, coreCoun
       out.evidence = out.evidence.slice(0, 10); out.scanned = out.evidence.length;
     }
   }
-  out.evidence.forEach((e) => { delete e._ab; });
+  // 摘要留一小段（給之後產生中文摘要用），其餘丟掉，避免研究狀態太大
+  out.evidence.forEach((e) => { e.ab = String(e._ab || '').slice(0, 1200); delete e._ab; });
   const by = out.ai.model ? `（${out.ai.model} 讀過 ${out.ai.judged} 篇摘要，排除 ${out.ai.removed} 篇不切題）` : '';
   const sup = out.evidence.filter((e) => e.k === 's').length;
   if (mode === 'claim' && round !== 'counter') {

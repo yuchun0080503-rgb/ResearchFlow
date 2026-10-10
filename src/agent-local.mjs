@@ -223,6 +223,15 @@ export async function translateTerm(term, fetchImpl = fetch) {
   return { en: '', via: '' };
 }
 
+// 沒有本機模型時的備援：用 MyMemory 免費翻譯服務把一小段英文摘要翻成繁體中文（每天有額度，所以只在學生展開卡片時才用）
+export async function toZh(text, fetchImpl = fetch) {
+  const src = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 450);
+  if (!src || hasZh(src)) return '';
+  const res = await fetchImpl('https://api.mymemory.translated.net/get?' + new URLSearchParams({ q: src, langpair: 'en|zh-TW' }));
+  const out = res.ok ? (await res.json()).responseData?.translatedText : '';
+  return typeof out === 'string' && hasZh(out) && !/MYMEMORY WARNING|QUERY LENGTH/i.test(out) ? out.trim() : '';
+}
+
 export function keywordsFrom(text) {
   const out = [];
   for (const [re, en] of TERMS) if (re.test(text) && !out.includes(en)) out.push(en);
@@ -542,7 +551,7 @@ export function classifyWork(work, kind, keywords = [], claimNeg = false) {
     d: kws.length && matched >= Math.ceil(kws.length / 2) ? '直接' : '間接',
     v: Boolean(work.doi),
     auto: true, // 規則式初步分類，尚未經小組確認
-    _ab: String(work.abstract || '').slice(0, 900), // 完整一點的摘要：只給本機模型判讀用，判讀完就丟掉，不會存進資料庫
+    _ab: String(work.abstract || '').slice(0, 1200), // 完整一點的摘要：只給本機模型判讀用，判讀完就丟掉，不會存進資料庫
   };
 }
 
