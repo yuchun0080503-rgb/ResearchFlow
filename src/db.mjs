@@ -241,6 +241,7 @@ export async function deleteProject(projectId, uid) {
   await wipe('researchState');
   await wipe('invites');
   await wipe('agentTrace');
+  await wipe('tasks');
   await wipe('members', (d) => d.id === uid);
   await deleteDoc(ref);
   await deleteDoc(doc(db, 'projects', projectId, 'members', uid));
@@ -365,9 +366,44 @@ export function subscribeTrace(projectId, onChange, onError) {
   return onSnapshot(q, (snap) => {
     onChange(snap.docs.map((d) => {
       const data = d.data({ serverTimestamps: 'estimate' });
-      return { w: data.w, x: data.x, k: data.k, at: data.at?.toMillis ? data.at.toMillis() : Date.now() };
+      return { w: data.w, x: data.x, k: data.k, uid: data.uid, at: data.at?.toMillis ? data.at.toMillis() : Date.now() };
     }));
   }, onError);
+}
+
+// ---------------- 分工清單（tasks）----------------
+// 完成與否由負責人自己標記（firestore.rules 強制：只有負責人本人能改 done），系統不判斷；
+// doneBy／doneAt 記錄「誰在什麼時候標記的」，老師看到的是「這是誰說自己做完的」，不是系統說他做完。
+
+export function subscribeTasks(projectId, onChange, onError) {
+  return onSnapshot(query(collection(db, 'projects', projectId, 'tasks'), orderBy('createdAt', 'asc')), (snap) => {
+    onChange(snap.docs.map((d) => {
+      const t = d.data({ serverTimestamps: 'estimate' });
+      const ms = (v) => (v?.toMillis ? v.toMillis() : 0);
+      return { id: d.id, title: t.title || '', type: t.type || 'other', assignee: t.assigneeUid || '', by: t.createdBy || '', done: !!t.done, doneBy: t.doneBy || '', doneAt: ms(t.doneAt), at: ms(t.createdAt) };
+    }));
+  }, onError);
+}
+
+export async function addTask(projectId, { title, type, assignee }, uid) {
+  await addDoc(collection(db, 'projects', projectId, 'tasks'), {
+    title: String(title || '').trim().slice(0, 120), type: type || 'other', assigneeUid: assignee || '',
+    createdBy: uid, createdAt: serverTimestamp(), done: false, doneBy: '', doneAt: null,
+  });
+}
+
+// 負責人標記完成／取消完成：一律記下是誰、什麼時候
+export async function setTaskDone(projectId, taskId, done, uid) {
+  await updateDoc(doc(db, 'projects', projectId, 'tasks', taskId), { done: !!done, doneBy: uid, doneAt: serverTimestamp() });
+}
+
+// 還沒有人負責的任務，自己認領
+export async function claimTask(projectId, taskId, uid) {
+  await updateDoc(doc(db, 'projects', projectId, 'tasks', taskId), { assigneeUid: uid });
+}
+
+export async function deleteTask(projectId, taskId) {
+  await deleteDoc(doc(db, 'projects', projectId, 'tasks', taskId));
 }
 
 // ---------------- util ----------------

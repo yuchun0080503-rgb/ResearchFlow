@@ -12,6 +12,7 @@ rules_version = '2';
 //   researchState/current { json, updatedBy, updatedAt }   小組共用的 Agent 流程狀態（含 Evidence Map）
 //   researchState/canvas  { ver }                          共用的 Canvas 版本號
 //   agentTrace/{traceId}  { w, x, k, uid, at }             k: user|sync|ai|sys；只能新增，不能修改或刪除
+//   tasks/{taskId}        { title, type, assigneeUid, createdBy, createdAt, done, doneBy, doneAt }   分工清單；done 只有負責人本人能改
 //
 // 這個系統只用 Firebase 免費方案，沒有 Cloud Functions：所有「硬限制」都寫在這份規則裡，
 // 由 Firestore 伺服器強制執行，前端程式被改掉也繞不過去。
@@ -166,6 +167,34 @@ service cloud.firestore {
         allow read: if canRead(projectId);
         allow write: if canWrite(projectId) && docId in ['current', 'canvas'];
         allow delete: if ownerDeleting(projectId);
+      }
+
+      // ---- tasks：分工清單。owner／editor 可以新增任務；「完成」只能由負責人本人標記，而且一定要記下是誰、什麼時候標的
+      //      （時間必須是伺服器時間，不能自己填）。老師與 viewer 只能看。任務內容建立後不能改，要改就刪掉重建 ----
+      match /tasks/{taskId} {
+        allow read: if canRead(projectId);
+        allow create: if canWrite(projectId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.done == false
+          && request.resource.data.type in ['research', 'data', 'present', 'poster', 'other']
+          && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 120;
+        allow update: if canWrite(projectId) && (
+            (
+              resource.data.assigneeUid == request.auth.uid
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'doneBy', 'doneAt'])
+              && request.resource.data.done is bool
+              && request.resource.data.doneBy == request.auth.uid
+              && request.resource.data.doneAt == request.time
+            )
+            // 還沒有人負責的任務可以自己認領（只能填自己）
+            || (
+              resource.data.assigneeUid == ''
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assigneeUid'])
+              && request.resource.data.assigneeUid == request.auth.uid
+            )
+          );
+        allow delete: if hasRole(projectId, ['owner'])
+          || (canWrite(projectId) && resource.data.createdBy == request.auth.uid);
       }
 
       // ---- agent trace：只能新增、不能改寫或刪除歷史紀錄；每一筆都必須帶自己的 uid（不能冒用別人的身分）。

@@ -98,6 +98,18 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 @media(max-width:560px){.mrow{grid-template-columns:auto 1fr 1fr}}
 .sw{display:flex;gap:8px;margin-top:6px}.sw button{width:30px;height:30px;border-radius:50%;padding:0}.sw button.on{outline:2px solid var(--fg);outline-offset:2px}
 .note{font-size:12px;color:var(--mute);margin-top:22px}
+.tsub{margin:-4px 0 10px}
+.trow{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:8px 0;align-items:start}
+.tname{display:flex;justify-content:space-between;align-items:baseline;font-size:13.5px}.tname span{color:var(--mute);font-size:12px}
+.tbar{height:8px;border-radius:99px;background:var(--soft);margin:5px 0;overflow:hidden}.tbar i{display:block;height:100%;border-radius:99px}
+.tal{font-size:12.5px;border:1px solid var(--line);border-radius:12px;padding:7px 11px;margin:8px 0;color:var(--mute)}.tal.warn{border-color:var(--warn);color:var(--fg)}
+.tgh{display:flex;align-items:center;gap:8px;margin:16px 0 2px;font-size:13.5px}.tgh .mute:last-child{margin-left:auto;font-size:12px}
+.tk{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:8px 0 8px 3px;border-bottom:1px solid var(--line);font-size:13.5px;line-height:1.5}
+.tk input{width:auto;margin-top:5px}.tk>button{border:0;padding:2px;color:var(--mute);background:none}.tk.done>div>div:first-child{color:var(--mute)}
+.tk .tclaim{font-size:12.5px;padding:2px 10px;margin-top:5px}
+.tadd{display:grid;gap:6px;margin:10px 0 4px}.tadd div{display:grid;grid-template-columns:1fr 1fr auto;gap:6px}
+#tm{width:min(1040px,96vw)}.tgrid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}.tgrid h3:first-child{margin-top:8px}
+@media(max-width:760px){.tgrid{grid-template-columns:1fr;gap:8px}}
 .stage{display:flex;align-items:center;gap:12px;padding:14px 15px;border-radius:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 9%,var(--bg)),color-mix(in srgb,var(--ac2) 7%,var(--bg)));border:1px solid var(--line);margin-bottom:4px}
 .stage .sb{width:34px;height:34px;border-radius:10px;background:var(--bg);display:grid;place-items:center;color:var(--ac);flex:none;box-shadow:0 0 0 1px var(--line)}
 .stage .sb .ic{margin:0}
@@ -248,20 +260,21 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
     </div>
   </div>
   <aside class="side">
-    <div class="tabs" role="tablist"><button data-p="agent" class="on"><i data-i="spark"></i>Agent</button><button data-p="ev"><i data-i="search"></i>證據</button><button data-p="hl"><i data-i="pulse"></i>進度檢核</button><button data-p="st"><i data-i="clip"></i>研究狀態</button><button data-p="tr"><i data-i="clock"></i>歷程</button></div>
+    <div class="tabs" role="tablist"><button data-p="agent" class="on"><i data-i="spark"></i>Agent</button><button data-p="ev"><i data-i="search"></i>證據</button><button data-p="hl"><i data-i="pulse"></i>進度檢核</button><button data-p="team"><i data-i="user"></i>分工</button><button data-p="st"><i data-i="clip"></i>研究狀態</button><button data-p="tr"><i data-i="clock"></i>歷程</button></div>
     <div class="pane" id="pane"></div>
   </aside>
 </div></section>
 
-<dialog id="pd"></dialog><dialog id="pf"></dialog>
+<dialog id="pd"></dialog><dialog id="tm"></dialog><dialog id="pf"></dialog>
 
 <script type="module">
 // 第一步地基：Firebase Auth + Firestore。這段用動態 import，所以就算 firebase-config.js
 // 不存在或連不上，也只是靜靜留在 demo 模式——下面主程式完全不受影響，不會白屏。
 window.RF_MODE = "demo";
 // 手寫與圖示的自動偵測（src/ink.mjs）跟 Firebase 無關，展示模式也能用；載入失敗就退回手動輸入。
-window.RF_VER = "2026.10.10-8";
+window.RF_VER = "2026.10.10-9";
 // 查證模式的建議、主張轉研究問題、中文轉英文關鍵字都是純函式（src/agent-local.mjs），展示模式也用得到。
+try { window.RFTEAM = await import("./src/teamwork.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 teamwork.mjs：", err?.message || err); }
 try { window.RFAGENT = await import("./src/agent-local.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 agent-local.mjs：", err?.message || err); }
 try {
   window.RFINK = await import("./src/ink.mjs");
@@ -602,7 +615,7 @@ function openWs(i){p=projects[i];S=p.S;sel.clear();tool="sel";editing={};linkFro
  $$(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.p==="agent"));show("ws");openWsUI();resize();if(!p.v)p.v={x:cv.getBoundingClientRect().width*.62,y:cv.getBoundingClientRect().height*.4,z:1};
  attachLiveObjects(p);attachLiveState(p);draw();renderPane();setStat("已連線，等待操作");
  if(!p.mode&&roleIn(p)==="Owner")chooseMode(p)}
-function detachLive(proj){if(!proj)return;["_unsubObjs","_unsubState","_unsubTrace"].forEach(k=>{if(proj[k]){proj[k]();proj[k]=null}})}
+function detachLive(proj){if(!proj)return;["_unsubObjs","_unsubState","_unsubTrace","_unsubTasks"].forEach(k=>{if(proj[k]){proj[k]();proj[k]=null}})}
 function leaveWs(){detachLive(p);goHome()}
 /* 小組共用的 Agent 流程狀態、Canvas 版本、Token 用量、研究歷程（live 模式）：訂閱 Firestore，組員做的每一步大家都看得到 */
 function attachLiveState(proj){if(!LIVE()||!proj.fid||proj._unsubState)return;
@@ -620,7 +633,8 @@ function attachLiveState(proj){if(!LIVE()||!proj.fid||proj._unsubState)return;
  proj._unsubTrace=RFDB.subscribeTrace(proj.fid,rows=>{
   proj.trace=rows.slice().reverse().map(r=>({t:new Date(r.at).toTimeString().slice(0,5),w:r.w,x:r.x,k:r.k}));
   if(p===proj&&pane==="tr")renderPane();
- },err=>console.error("[ResearchFlow] 讀取研究歷程失敗：",err))}
+ },err=>console.error("[ResearchFlow] 讀取研究歷程失敗：",err));
+ if(RFDB.subscribeTasks)proj._unsubTasks=RFDB.subscribeTasks(proj.fid,rows=>{proj.tasks=rows;if(p===proj)renderTeam()},err=>console.error("[ResearchFlow] 讀取分工清單失敗：",err))}
 function saveS(){if(!LIVE()||!p||!p.fid||!canEdit())return;
  const j=JSON.stringify(S);if(j===p._sj)return;p._sj=j;
  RFDB.saveResearchState(p.fid,j,ME).catch(err=>{console.error("[ResearchFlow] 儲存研究狀態失敗：",err);setStat("儲存研究狀態失敗，請檢查網路","r")})}
@@ -874,6 +888,59 @@ function health(){const s=S.step,mk=()=>{const h=[];return[h,(t,ok,mid,tx,more)=
  return[["準備階段",prep],["證據蒐集",evi],["整理與結論",fin]]}
 const stageOf=()=>["畫布討論","畫布讀取確認","範圍聚焦","範圍聚焦","搜尋準備","證據補強","整理階段"][S.step];
 function next(){const c=S.ev.filter(e=>e.k==="c").length;return S.step<1?"在畫布討論後，選取範圍並分析目前研究方向。":S.step<5?"回答 Agent 的確認與聚焦問題。":!enoughOf(p)?(MODE()==="claim"?"繼續替這個主張找證據：還需要更多支持的研究，或證據力更高的研究（回顧、實驗）。":"補充與目前研究問題直接相關的反向研究。"):S.ev.some(e=>!e.v)?"驗證尚未確認的來源。":"整理報告架構，並由小組形成結論。"}
+/* 分工：兩種資訊分開呈現、不合併成一個分數（統計與提示的邏輯在 src/teamwork.mjs）。
+   左／上：畫布活動統計——客觀、自動，但只看得到畫布上的工作；
+   右／下：分工清單——涵蓋上台報告、海報等畫布外的工作，完成與否由負責人自己勾選，系統只記錄是誰在什麼時候標記的。 */
+const studs=()=>p.members.filter(m=>m.role!=="Teacher"&&U[m.u]&&!U[m.u].pending).map(m=>m.u);
+const uname=u=>U[u]?U[u].n:"已離開的成員";
+const fmtAt=ms=>{const d=new Date(ms);return (d.getMonth()+1)+"/"+d.getDate()+" "+d.toTimeString().slice(0,5)};
+const tAlert=a=>`<div class="tal ${a.level}">${esc(a.text.replace("{name}",a.u?uname(a.u):""))}</div>`;
+function activityHTML(){const T=window.RFTEAM,a=T.canvasActivity(p.objs,studs());
+ return `<h3>畫布活動統計</h3><p class="sm mute tsub">系統自動統計：目前畫布上的每一項內容是誰建立的。</p>`
+  +(a.total?a.rows.map(r=>{const pc=Math.round(r.share*100),ks=Object.keys(T.KIND_NAMES).filter(k=>r.kinds[k]).map(k=>T.KIND_NAMES[k]+" "+r.kinds[k]).join("．");
+   return `<div class="trow">${r.u?av(r.u,22):`<span class="av" style="background:var(--mute);width:22px;height:22px">?</span>`}<div><div class="tname"><b>${esc(uname(r.u))}</b><span>${r.total} 項．${pc}%</span></div><div class="tbar"><i style="width:${pc}%;background:${r.u?U[r.u].c:"var(--mute)"}"></i></div><div class="sm mute">${ks||"沒有建立內容"}</div></div></div>`}).join(""):`<p class="sm mute">畫布上還沒有內容。</p>`)
+  +T.canvasAlerts(a).map(tAlert).join("")
+  +`<p class="note" style="margin-top:12px">上台報告、海報等工作不在此統計中，請搭配分工清單一起看。這裡只計算目前還在畫布上的內容，已刪除的內容、修改別人的內容都不會算進來，數量也不代表品質。</p>`}
+function tasksHTML(){const T=window.RFTEAM,ids=studs(),ts=p.tasks||[],sum=T.taskSummary(ts,ids),own=myRole()==="Owner",can=canEdit();
+ const row=t=>{const ty=T.typeOf(t.type),mine=can&&t.assignee===ME,free=!ids.includes(t.assignee);
+  return `<div class="tk ${t.done?"done":""}"><input type="checkbox" data-tk="done" data-id="${esc(t.id)}" ${t.done?"checked":""} ${mine?"":"disabled"} aria-label="標記完成" title="${mine?"標記完成":"只有負責人自己可以標記完成"}"><div><div>${esc(t.title)} <span class="tag">${ty.name}</span></div>
+   <div class="sm mute">${t.done?`${esc(uname(t.doneBy))} 於 ${fmtAt(t.doneAt)} 自行標記完成`:t.doneBy?`${esc(uname(t.doneBy))} 於 ${fmtAt(t.doneAt)} 取消完成`:"尚未標記完成"}．${ty.onCanvas?"可對照畫布活動統計":"畫布上看不到，由負責人自行回報"}</div>
+   ${free&&can&&!t.assignee?`<button class="tclaim" data-tk="claim" data-id="${esc(t.id)}">我來負責</button>`:""}</div>
+   ${can&&(own||t.by===ME)?`<button data-tk="del" data-id="${esc(t.id)}" aria-label="刪除任務" title="刪除任務">${I("trash")}</button>`:"<span></span>"}</div>`};
+ const free=ts.filter(t=>!ids.includes(t.assignee));
+ return `<h3>分工清單</h3><p class="sm mute tsub">完成狀態由負責人自己勾選，系統沒有驗證；每一次標記都會記下時間，並留在「歷程」裡。</p>`
+  +(can?`<div class="tadd"><input id="tkn" maxlength="120" placeholder="新增任務，例如：上台報告第二段"><div><select id="tkt" aria-label="任務類型">${T.TASK_TYPES.map(x=>`<option value="${x.id}">${x.name}</option>`).join("")}</select><select id="tku" aria-label="負責人">${ids.map(u=>`<option value="${esc(u)}" ${u===ME?"selected":""}>${esc(uname(u))}</option>`).join("")}<option value="">尚未決定</option></select><button class="pri" data-tk="add">新增</button></div></div>`:"")
+  +ids.map((u,i)=>{const mine=ts.filter(t=>t.assignee===u),duty=(p.members.find(m=>m.u===u)||{}).duty;
+   return `<div class="tgh">${av(u,22)}<b>${esc(uname(u))}</b>${duty?`<span class="sm mute">${esc(duty)}</span>`:""}<span class="mute">${mine.length?`自行標記完成 ${sum.rows[i].done}／${mine.length}`:"還沒有任務"}</span></div>${mine.map(row).join("")}`}).join("")
+  +(free.length?`<div class="tgh"><b>還沒有人負責</b><span class="mute">${free.length} 項</span></div>${free.map(row).join("")}`:"")
+  +(!ts.length?`<p class="sm mute" style="margin-top:12px">${can?"還沒有任務。把每個人負責的工作列出來，包含上台報告、海報這類不會出現在畫布上的工作。":"小組還沒有建立分工清單。"}</p>`:"")
+  +T.taskAlerts(ts,ids).map(tAlert).join("")}
+function teamHTML(wide){if(!window.RFTEAM)return `<p class="sm mute">分工功能載入失敗，請重新整理頁面。</p>`;
+ const lead=`<p class="sm mute" style="margin:0 0 4px">${isT()?"兩種資訊請分開看：系統不會把它們合併成一個分數，整體分工是否合理由老師判斷。":"兩種資訊分開呈現，不會合併成分數；老師看到的也是同一個畫面。"}</p>`;
+ return wide?lead+`<div class="tgrid"><section>${activityHTML()}</section><section>${tasksHTML()}</section></div>`
+  :lead+(isT()?activityHTML()+tasksHTML():tasksHTML()+activityHTML())+`<div class="acts"><button data-tk="wide">並排檢視</button></div>`}
+function bindTeam(r){r.querySelectorAll("[data-tk]").forEach(b=>{const go=()=>teamAct(b.dataset.tk,b.dataset.id,r);if(b.type==="checkbox")b.onchange=go;else b.onclick=go});
+ const n=r.querySelector("#tkn");if(n)n.onkeydown=e=>{if(e.key==="Enter"&&!e.isComposing)teamAct("add","",r)}}
+function fillTeam(){const d=$("#tm");d.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h2 style="margin:0">分工</h2><button data-tk="close">關閉</button></div>`+teamHTML(true);bindTeam(d)}
+// 別人更新分工清單時重畫，但保留自己打到一半的任務名稱
+function renderTeam(){if(!p)return;const d=$("#tm"),keep=r=>{const n=r.querySelector("#tkn");return n?{v:n.value,f:document.activeElement===n,t:r.querySelector("#tkt").value,u:r.querySelector("#tku").value}:null},
+  put=(r,k)=>{const n=r.querySelector("#tkn");if(!n||!k)return;n.value=k.v;r.querySelector("#tkt").value=k.t;r.querySelector("#tku").value=k.u;if(k.f)n.focus()};
+ if(pane==="team"){const el=$("#pane"),k=keep(el);renderPane();put(el,k)}
+ if(d.open){const k=keep(d);fillTeam();put(d,k)}}
+function teamAct(k,id,r){const ts=p.tasks=p.tasks||[],t=ts.find(x=>x.id===id),live=LIVE()&&p.fid,me=U[ME].n,
+  fail=e=>{console.error("[ResearchFlow] 分工清單更新失敗：",e);alert("沒有成功，請檢查網路或權限後再試一次。");renderTeam()};
+ if(k==="wide"){fillTeam();$("#tm").showModal();return}
+ if(k==="close"){$("#tm").close();return}
+ if(!canEdit())return;
+ if(k==="add"){const n=r.querySelector("#tkn"),title=n.value.trim().slice(0,120);if(!title){n.focus();return}
+  const d={title,type:r.querySelector("#tkt").value,assignee:r.querySelector("#tku").value};n.value="";
+  log(me,`新增任務「${title}」（${RFTEAM.typeOf(d.type).name}），負責人：${d.assignee?uname(d.assignee):"尚未決定"}。`);
+  if(live)RFDB.addTask(p.fid,d,ME).catch(fail);else ts.push({id:"t"+Date.now(),...d,by:ME,done:false,doneBy:"",doneAt:0,at:Date.now()})}
+ if(k==="done"&&t){if(t.assignee!==ME){renderTeam();return}const done=!t.done;log(me,`${done?"標記完成":"取消完成"}任務「${t.title}」。`);
+  if(live)RFDB.setTaskDone(p.fid,id,done,ME).catch(fail);else Object.assign(t,{done,doneBy:ME,doneAt:Date.now()})}
+ if(k==="claim"&&t){log(me,`認領任務「${t.title}」。`);if(live)RFDB.claimTask(p.fid,id,ME).catch(fail);else t.assignee=ME}
+ if(k==="del"&&t){if(!confirm(`刪除任務「${t.title}」？`))return;log(me,`刪除任務「${t.title}」。`);if(live)RFDB.deleteTask(p.fid,id).catch(fail);else p.tasks=ts.filter(x=>x!==t)}
+ if(!live)renderTeam()}
 function renderPane(){const el=$("#pane");p.stage=S.step?stageOf():"畫布討論";$("#pst").textContent=p.stage;
  $("#pmode").textContent=MODE_N[MODE()];$("#pmode").className="tag m-"+MODE();
  if(pane==="agent")el.innerHTML=agentHTML();
@@ -892,6 +959,7 @@ function renderPane(){const el=$("#pane");p.stage=S.step?stageOf():"畫布討論
    +H("團隊")+F("成員與角色",p.members.map(m=>U[m.u].n+"．"+m.role))+F("目前 AI 權限",`Level ${p.LV}．${LVN[p.LV]}`)
    +H("目前進度")+F("階段",stageOf())+F("建議下一步",p.LV>=2?next():"此作業尚未開放建議")
    +`<p class="note">這是 Agent 用來記住進度的摘要，之後不用每次重新讀取整張畫布與所有歷史紀錄。</p>`}
+ if(pane==="team"){el.innerHTML=teamHTML(false);bindTeam(el)}
  if(pane==="tr"){el.innerHTML=`<h3>研究歷程</h3><p class="sm mute" style="margin-top:-4px">依時間排序，深色標籤代表由 Agent 產生的內容，淺灰的同步紀錄可略過不看。</p>`
   +p.trace.slice().reverse().map(t=>{const k=t.k==="ai"?"ai":t.k==="sync"?"sync":t.k==="sys"?"sys":"";
    return `<div class="hl tt ${k==="sync"?"sync":""}"><span>${t.t}</span><span><div><span class="tag ${k}">${t.k==="ai"?"Agent":t.k==="sync"?"同步":t.k==="sys"?"權限":"學生"}</span>${k!=="sync"?` <b>${esc(t.w)}</b>`:""}</div><div>${esc(t.x)}</div></span></div>`}).join("")}
