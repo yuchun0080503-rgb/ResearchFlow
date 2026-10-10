@@ -7,7 +7,7 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {
-  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail, signOut, onAuthStateChanged,
+  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc,
@@ -116,6 +116,14 @@ export async function registerEmail(email, password, displayName) {
   return cred;
 }
 
+// Google 登入：跳出 Google 的視窗選帳號（要先在 Firebase 主控台的 Authentication → 登入方式啟用 Google）。
+// 第一次用 Google 登入就等於註冊，不需要另外設定密碼。
+export function signInGoogle() {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  return signInWithPopup(auth, provider);
+}
+
 export function resetPassword(email) {
   return sendPasswordResetEmail(auth, email);
 }
@@ -132,6 +140,11 @@ export function authErrorText(err) {
     'auth/user-not-found': '找不到這個帳號，請先註冊。',
     'auth/wrong-password': '密碼不正確。',
     'auth/too-many-requests': '嘗試次數過多，請稍後再試。',
+    'auth/popup-blocked': '瀏覽器擋下了 Google 的登入視窗，請允許這個網站開啟彈出視窗後再試一次。',
+    'auth/popup-closed-by-user': '登入視窗被關掉了，沒有完成登入。',
+    'auth/cancelled-popup-request': '登入視窗被關掉了，沒有完成登入。',
+    'auth/unauthorized-domain': '這個網址還沒有加入 Firebase 的授權網域（Authentication → 設定 → 已授權網域）。',
+    'auth/account-exists-with-different-credential': '這個電子郵件已經用其他方式註冊過，請改用原本的方式登入。',
     'auth/network-request-failed': '網路連線失敗，請檢查網路後再試。',
     'auth/operation-not-allowed': 'Firebase 專案尚未啟用「電子郵件／密碼」登入方式。',
   };
