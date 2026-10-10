@@ -98,6 +98,29 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 @media(max-width:560px){.mrow{grid-template-columns:auto 1fr 1fr}}
 .sw{display:flex;gap:8px;margin-top:6px}.sw button{width:30px;height:30px;border-radius:50%;padding:0}.sw button.on{outline:2px solid var(--fg);outline-offset:2px}
 .note{font-size:12px;color:var(--mute);margin-top:22px}
+.tlay{display:grid;grid-template-columns:270px 1fr;gap:28px;max-width:1240px;margin:0 auto;padding:16px 28px 72px;align-items:start}
+.tside{position:sticky;top:12px;display:flex;flex-direction:column;gap:6px}.tside label{margin-top:0}
+.tlab{font-size:12.5px;color:var(--mute);font-weight:600;margin:18px 2px 4px}
+.tgrp{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;width:100%;border:1px solid transparent;border-radius:14px;padding:11px 14px;background:none}
+.tgrp:hover{background:var(--soft)}.tgrp.on{background:var(--soft);border-color:color-mix(in srgb,var(--ac) 30%,var(--line))}
+.tgrp b{font-size:14.5px}.tgrp span{font-size:12.5px;color:var(--mute)}.tgrp .idle{color:#c8501e}
+.tmain{min-width:0}.thead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:4px 0 12px}.thead h1{font-size:30px;flex:1;min-width:0}
+.tchips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.tchips>span:not(.tag){font-size:13px;padding:4px 12px;border-radius:99px}
+.tcard{background:var(--bg);border:1px solid var(--line);border-radius:24px;padding:24px 26px;margin-top:20px;box-shadow:0 1px 2px rgba(20,20,40,.03),0 12px 32px -22px rgba(20,20,40,.14)}
+.tcard h2{font-size:19px;margin:0 0 4px}.tch{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.tprog{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 16px;margin-top:16px}
+.tprog>div{border-top:3px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:3px}.tprog>div.s-g{border-color:var(--ac)}.tprog>div.s-y{border-color:var(--warn)}
+.tprog b{font-size:14px}.tprog span{font-size:12.5px;color:var(--mute)}
+.lvs{display:grid;gap:8px;margin-top:14px}
+.lvopt{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:12px 16px;cursor:pointer;margin:0}
+.lvopt.on{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}.lvopt input{width:auto;margin-top:4px;accent-color:var(--ac)}
+.lvopt>span{display:flex;flex-direction:column;gap:2px;color:var(--fg);font-size:14.5px}.lvopt>span>span{font-size:12.5px;color:var(--mute)}
+.ttab{width:100%;border-collapse:collapse;font-size:13.5px}.ttab th{text-align:left;font-size:12px;color:var(--mute);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line)}
+.ttab td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.5}.ttab td:first-child,.ttab td:nth-child(2),.ttab td:last-child{white-space:nowrap}.ttab tr:last-child td{border-bottom:0}
+.tag.blk{background:color-mix(in srgb,#e2662b 12%,var(--bg));color:#c8501e;border-color:transparent}
+#tmini{display:block;width:100%;height:340px;border:1px solid var(--line);border-radius:16px;background:var(--bg)}
+#tbadge{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:600}
+@media(max-width:860px){.tlay{grid-template-columns:1fr;padding:12px 16px 56px}.tside{position:static}.thead h1{font-size:24px}.tcard{padding:18px}.ttab td:nth-child(3){min-width:180px}.tcard{overflow-x:auto}}
 .tsub{margin:-4px 0 10px}
 .trow{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:8px 0;align-items:start}
 .tname{display:flex;justify-content:space-between;align-items:baseline;font-size:13.5px}.tname span{color:var(--mute);font-size:12px}
@@ -134,11 +157,15 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 .kwc .kwt{color:var(--ac);cursor:pointer;border-bottom:1px dotted var(--ac)}
 .kwc .kwn{cursor:pointer}.kwc.core{border-color:var(--fg)}.kwc.core .kwn{font-weight:700}
 /* 我的研究：自己建立的研究可以向左滑，露出後面的刪除鈕 */
-.rowwrap{position:relative;margin-bottom:8px;border-radius:16px;overflow:hidden}
-.rowwrap .row{margin-bottom:0;position:relative;background:var(--bg);transition:transform .2s,border-color .15s,box-shadow .15s;touch-action:pan-y}
-.rowwrap .row.drag{transition:none}.rowwrap .row.open{transform:translateX(-92px)}
-.rowdel{position:absolute;top:0;right:0;bottom:0;width:92px;border:0;border-radius:0 16px 16px 0;background:var(--bad);color:#fff;font-weight:600}
-.rowdel:hover:not(:disabled){background:var(--bad);opacity:.88}
+.rowwrap{display:flex;align-items:stretch;margin-bottom:8px}
+.rowwrap .row{flex:1;min-width:0;margin-bottom:0;touch-action:pan-y;user-select:none}
+.rowdel{flex:none;width:0;margin-left:0;padding:0;border:0 solid color-mix(in srgb,var(--bad) 38%,var(--line));border-radius:16px;overflow:hidden;opacity:0;white-space:nowrap;
+ background:color-mix(in srgb,var(--bad) 8%,var(--bg));color:var(--bad);font-size:13px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+ transition:width .22s,margin-left .22s,opacity .18s,background .15s,color .15s}
+.rowdel .ic{margin:0;width:18px;height:18px}
+.rowwrap.open .rowdel{width:84px;margin-left:8px;border-width:1px;opacity:1}
+.rowwrap.drag .rowdel{transition:none;border-width:1px}
+.rowdel:hover:not(:disabled){background:var(--bad);border-color:var(--bad);color:#fff}
 .kwc button{border:0;padding:0 6px;font-size:14px;line-height:1.4;color:var(--mute);border-radius:99px}
 
 body{background-image:radial-gradient(640px 440px at 4% -8%,rgba(61,107,220,.10),transparent 60%),radial-gradient(540px 420px at 98% 2%,rgba(232,131,74,.10),transparent 60%),radial-gradient(560px 460px at 56% 110%,rgba(31,157,104,.08),transparent 60%);background-attachment:fixed}
@@ -200,7 +227,7 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
 </head>
 <body>
 <header>
-  <div class="brand" id="brand" tabindex="0"><span id="logo"></span><span class="bt">ResearchFlow</span></div><span class="sp"></span>
+  <div class="brand" id="brand" tabindex="0"><span id="logo"></span><span class="bt">ResearchFlow</span></div><span class="tag hide" id="tbadge">老師端</span><span class="sp"></span>
   <div id="hr" class="hide" style="display:flex;gap:22px;align-items:center">
     <div class="date" id="date"></div>
     <button class="avb" id="avb" aria-label="個人檔案設定" aria-haspopup="true"></button>
@@ -244,6 +271,8 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
   </div>
 </section>
 
+<section id="v-teach" class="hide"></section>
+
 <section id="v-ws" class="hide"><div id="ws">
   <div class="cv">
     <div class="pbar"><button id="back"><i data-i="back"></i>返回</button><b id="pt"></b><span class="tag" id="pst"></span><span class="tag" id="rolelab"></span><span class="tag" id="pmode"></span><span class="sp"></span><span id="pres" class="stack"></span><button id="rpt"><i data-i="ext"></i>小組報告</button><button id="cfg"><i data-i="gear"></i>研究檔案</button></div>
@@ -272,7 +301,7 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
 // 不存在或連不上，也只是靜靜留在 demo 模式——下面主程式完全不受影響，不會白屏。
 window.RF_MODE = "demo";
 // 手寫與圖示的自動偵測（src/ink.mjs）跟 Firebase 無關，展示模式也能用；載入失敗就退回手動輸入。
-window.RF_VER = "2026.10.10-9";
+window.RF_VER = "2026.10.10-10";
 // 查證模式的建議、主張轉研究問題、中文轉英文關鍵字都是純函式（src/agent-local.mjs），展示模式也用得到。
 try { window.RFTEAM = await import("./src/teamwork.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 teamwork.mjs：", err?.message || err); }
 try { window.RFAGENT = await import("./src/agent-local.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 agent-local.mjs：", err?.message || err); }
@@ -387,7 +416,9 @@ const nowT=()=>new Date().toTimeString().slice(0,5);
 // 「Agent／權限」類紀錄由 Cloud Functions 寫入（規則不允許前端偽造），所以這裡直接略過。
 const traceLive=(fid,w,x,k)=>{if(k==="user"||k==="sync")RFDB.addTrace(fid,{w,x,k},ME).catch(err=>console.error("[ResearchFlow] 寫入歷程失敗：",err))};
 const log=(w,x,k="user")=>{if(LIVE()&&p.fid){traceLive(p.fid,w,x,k);return}p.trace.push({t:nowT(),w,x,k})};
-const show=id=>{["login","proj","ws"].forEach(k=>$("#v-"+k).classList.toggle("hide",k!==id));$("#hr").classList.toggle("hide",id==="login")};
+// 老師登入後的首頁是老師端儀表板（v-teach），不是學生的「我的研究」
+const show=id=>{if(id==="proj"&&ROLE==="t")id="teach";["login","proj","teach","ws"].forEach(k=>$("#v-"+k).classList.toggle("hide",k!==id));$("#hr").classList.toggle("hide",id==="login");
+ $("#tbadge").classList.toggle("hide",ROLE!=="t"||id==="login");if(id==="teach"){tLast="";renderTeach()}};
 const getO=id=>p.objs.find(o=>o.id===id);
 // live 模式的角色以專案成員資料為準（老師是透過老師邀請連結加入的成員）；demo 模式沿用登入畫面選的身分。
 const roleIn=q=>{const r=(q.members.find(m=>m.u===ME)||{}).role;return LIVE()?r:ROLE==="t"?"Teacher":r};
@@ -404,7 +435,7 @@ $("#avb").onclick=e=>{e.stopPropagation();$("#menu").classList.toggle("hide")};
 addEventListener("click",e=>{if(!e.target.closest("#menu"))$("#menu").classList.add("hide")});
 $("#brand").onclick=()=>{if(!$("#hr").classList.contains("hide"))leaveWs()};
 $("#out").onclick=()=>{$("#menu").classList.add("hide");
- detachLive(p);
+ projects.forEach(detachLive);tSel=null;
  if(unsubProjects){unsubProjects();unsubProjects=null}
  if(LIVE()){projects.length=0;p=null;RFDB.signOutUser().catch(()=>{})}
  show("login")};
@@ -481,7 +512,7 @@ function attachLiveProjects(){
   const inWs=!$("#v-ws").classList.contains("hide");
   projects.length=0;projects.push(...mapped);
   if(p&&!mapped.includes(p)){detachLive(p);p=null;if(inWs){alert("你已經不是這個研究專案的成員。");show("proj")}}
-  renderProj();
+  renderProj();teachTick();
   if(p&&inWs){openWsUI();renderPane()}
  },err=>{console.error(err);$("#cnt").textContent="讀取研究專案失敗，請檢查網路或 Firebase 設定";alert("讀取研究專案失敗："+(err?.message||err))});
 }
@@ -504,19 +535,21 @@ function chooseMode(q,done){const d=$("#pd"),text=[q.name,q.req,q.field,q.course
  d.showModal()}
 function renderProj(){const mine=q=>(LIVE()||ROLE==="s")&&roleIn(q)==="Owner";
  $("#cnt").textContent=`${projects.length} 個進行中的研究`+(projects.some(mine)?"．自己建立的研究向左滑可以刪除":"");
- $("#plist").innerHTML=projects.map((q,i)=>`<div class="rowwrap">${mine(q)?`<button class="rowdel" data-del="${i}" tabindex="-1" aria-label="刪除「${esc(q.name)}」">刪除</button>`:""}<div class="row" data-i="${i}" tabindex="0" ${mine(q)?'data-own="1"':""}><div style="flex:1 1 200px"><b>${esc(q.name)}</b><div class="sm mute">${esc(q.course||"未填課程")}　截止 ${q.due||"未設定"}</div></div><span class="tag">${q.stage}</span><span class="stack">${q.members.map(m=>av(m.u,22)).join("")}</span><button data-e="${i}" class="sm" style="padding:3px 10px">${I("gear")}研究檔案</button><div class="gap">${I("spark")}${gapText(q)}</div></div></div>`).join("");
- $$("#plist .row").forEach(r=>{let x0=null,dx=0,moved=false;
-  const close=()=>r.classList.remove("open");
-  r.onclick=()=>{if(moved){moved=false;return}if(r.classList.contains("open")){close();return}openWs(+r.dataset.i)};
-  r.onkeydown=e=>{if(e.key==="Enter")r.click();if((e.key==="Delete"||e.key==="Backspace")&&r.dataset.own)deleteProj(projects[+r.dataset.i],r.parentNode.querySelector(".rowdel"))};
+ $("#plist").innerHTML=projects.map((q,i)=>`<div class="rowwrap"><div class="row" data-i="${i}" tabindex="0" ${mine(q)?'data-own="1"':""}><div style="flex:1 1 200px"><b>${esc(q.name)}</b><div class="sm mute">${esc(q.course||"未填課程")}　截止 ${q.due||"未設定"}</div></div><span class="tag">${q.stage}</span><span class="stack">${q.members.map(m=>av(m.u,22)).join("")}</span><button data-e="${i}" class="sm" style="padding:3px 10px">${I("gear")}研究檔案</button><div class="gap">${I("spark")}${gapText(q)}</div></div>${mine(q)?`<button class="rowdel" data-del="${i}" tabindex="-1" aria-label="刪除「${esc(q.name)}」">${I("trash")}刪除</button>`:""}</div>`).join("");
+ $$("#plist .row").forEach(r=>{let x0=null,dx=0,moved=false;const wrap=r.parentNode,del=wrap.querySelector(".rowdel"),W=84;
+  const close=()=>wrap.classList.remove("open");
+  r.onclick=()=>{if(moved){moved=false;return}if(wrap.classList.contains("open")){close();return}openWs(+r.dataset.i)};
+  r.onkeydown=e=>{if(e.key==="Enter")r.click();if((e.key==="Delete"||e.key==="Backspace")&&r.dataset.own)deleteProj(projects[+r.dataset.i],del)};
   if(!r.dataset.own)return;
-  // 向左滑（滑鼠拖曳、手指滑動，或觸控板兩指橫向捲動）超過一半就停在打開的位置，露出後面的刪除鈕；點一下列或往右滑收回去
+  // 向左滑（滑鼠拖曳、手指滑動，或觸控板兩指橫向捲動）：研究列往左讓出位置，右邊長出一張同樣圓角的「刪除」小卡；
+  // 超過一半就停在打開的位置，點一下研究列或往右滑收回去
+  const base=()=>wrap.classList.contains("open")?W:0,set=w=>{del.style.width=w+"px";del.style.marginLeft=Math.min(8,w/4)+"px";del.style.opacity=Math.min(1,w/W*1.2)};
   r.onpointerdown=e=>{if(e.target.closest("button"))return;x0=e.clientX;dx=0;moved=false};
-  r.onpointermove=e=>{if(x0===null)return;dx=e.clientX-x0;if(Math.abs(dx)<6)return;moved=true;r.classList.add("drag");
-   const base=r.classList.contains("open")?-92:0;r.style.transform=`translateX(${Math.max(-92,Math.min(0,base+dx))}px)`};
-  const end=()=>{if(x0===null)return;x0=null;r.classList.remove("drag");r.style.transform="";if(moved)r.classList.toggle("open",(r.classList.contains("open")?-92:0)+dx<-46)};
+  r.onpointermove=e=>{if(x0===null)return;dx=e.clientX-x0;if(Math.abs(dx)<6)return;if(!moved){moved=true;wrap.dataset.b=base();wrap.classList.add("drag")}
+   set(Math.max(0,Math.min(W,+wrap.dataset.b-dx)))};
+  const end=()=>{if(x0===null)return;x0=null;if(!moved)return;const w=Math.max(0,Math.min(W,+wrap.dataset.b-dx));wrap.classList.remove("drag");del.style.width=del.style.marginLeft=del.style.opacity="";wrap.classList.toggle("open",w>W/2)};
   r.onpointerup=end;r.onpointercancel=end;r.onpointerleave=end;
-  r.addEventListener("wheel",e=>{if(Math.abs(e.deltaX)<=Math.abs(e.deltaY)||Math.abs(e.deltaX)<8)return;e.preventDefault();r.classList.toggle("open",e.deltaX>0)},{passive:false})});
+  r.addEventListener("wheel",e=>{if(Math.abs(e.deltaX)<=Math.abs(e.deltaY)||Math.abs(e.deltaX)<8)return;e.preventDefault();wrap.classList.toggle("open",e.deltaX>0)},{passive:false})});
  $$("[data-e]").forEach(b=>b.onclick=e=>{e.stopPropagation();openPD(+b.dataset.e)});
  $$("[data-del]").forEach(b=>b.onclick=e=>{e.stopPropagation();deleteProj(projects[+b.dataset.del],b)})}
 // 刪除研究（只有 Owner 看得到按鈕）：無法復原，而且所有組員都會失去這份研究，所以要再確認一次。
@@ -622,7 +655,7 @@ function attachLiveState(proj){if(!LIVE()||!proj.fid||proj._unsubState)return;
  proj._unsubState=RFDB.subscribeResearchState(proj.fid,st=>{
   if(st.canvas)proj.ver=st.canvas.ver||0;
   proj.tok=(st.usage&&st.usage.tok)||0;
-  let changed=false;
+  let changed=false;teachTick();
   if(st.current&&st.current.json&&st.current.json!==proj._sj){try{proj.S={...fresh(),...JSON.parse(st.current.json)};proj._sj=st.current.json;changed=true}catch(e){console.error("[ResearchFlow] 研究狀態格式錯誤：",e)}}
   if(p!==proj)return;
   S=proj.S;
@@ -631,10 +664,10 @@ function attachLiveState(proj){if(!LIVE()||!proj.fid||proj._unsubState)return;
   if(changed||!typing)renderPane();else updStale();
  },err=>{console.error("[ResearchFlow] 讀取研究狀態失敗：",err);setStat("讀取研究狀態失敗，請檢查網路或 Firebase 設定","r")});
  proj._unsubTrace=RFDB.subscribeTrace(proj.fid,rows=>{
-  proj.trace=rows.slice().reverse().map(r=>({t:new Date(r.at).toTimeString().slice(0,5),w:r.w,x:r.x,k:r.k}));
+  proj.trace=rows.slice().reverse().map(r=>({t:new Date(r.at).toTimeString().slice(0,5),w:r.w,x:r.x,k:r.k,at:r.at}));teachTick();
   if(p===proj&&pane==="tr")renderPane();
  },err=>console.error("[ResearchFlow] 讀取研究歷程失敗：",err));
- if(RFDB.subscribeTasks)proj._unsubTasks=RFDB.subscribeTasks(proj.fid,rows=>{proj.tasks=rows;if(p===proj)renderTeam()},err=>console.error("[ResearchFlow] 讀取分工清單失敗：",err))}
+ if(RFDB.subscribeTasks)proj._unsubTasks=RFDB.subscribeTasks(proj.fid,rows=>{proj.tasks=rows;teachTick();if(p===proj)renderTeam()},err=>console.error("[ResearchFlow] 讀取分工清單失敗：",err))}
 function saveS(){if(!LIVE()||!p||!p.fid||!canEdit())return;
  const j=JSON.stringify(S);if(j===p._sj)return;p._sj=j;
  RFDB.saveResearchState(p.fid,j,ME).catch(err=>{console.error("[ResearchFlow] 儲存研究狀態失敗：",err);setStat("儲存研究狀態失敗，請檢查網路","r")})}
@@ -669,7 +702,7 @@ function attachLiveObjects(proj){if(window.RF_MODE!=="live"||!proj.fid||proj._un
   proj._pushed=new Map(objs.map(o=>[o.id,JSON.stringify(o)]));
   if(!proj._everLoaded){proj.H=[JSON.stringify(objs)];proj.hi=0;proj._everLoaded=true}
   else{proj.H=proj.H.slice(0,proj.hi+1);proj.H.push(JSON.stringify(objs));proj.hi=proj.H.length-1}
-  draw();insp();renderPane()
+  draw();insp();renderPane();teachTick()
  },err=>{console.error("[ResearchFlow] 讀取畫布物件失敗：",err);setStat("讀取畫布物件失敗，請檢查網路或 Firebase 設定","r")})}
 // bump：這次同步算不算「一次畫布修改」（要不要讓共用的 Canvas 版本號 +1）。使用者的操作（op／復原／重做）算；
 // Agent 只是在物件上標記「已讀取／已確認／辨識結果」時不算，否則剛分析完就會被提示「畫布有新修改」。
@@ -941,6 +974,70 @@ function teamAct(k,id,r){const ts=p.tasks=p.tasks||[],t=ts.find(x=>x.id===id),li
  if(k==="claim"&&t){log(me,`認領任務「${t.title}」。`);if(live)RFDB.claimTask(p.fid,id,ME).catch(fail);else t.assignee=ME}
  if(k==="del"&&t){if(!confirm(`刪除任務「${t.title}」？`))return;log(me,`刪除任務「${t.title}」。`);if(live)RFDB.deleteTask(p.fid,id).catch(fail);else p.tasks=ts.filter(x=>x!==t)}
  if(!live)renderTeam()}
+/* 老師端：選課程 → 看各組狀態。老師不建立研究，所以沒有「建立新的研究」區塊。
+   左欄：課程選單與各組清單；右欄：選到的那一組的進度、AI 權限、分工、AI 使用歷程、白板預覽（唯讀）。
+   右欄直接沿用學生端的判定（health()、分工統計、研究歷程），所以老師和學生看到的是同一份事實。 */
+let tCourse="",tSel=null,tLv=null,tLast="",tTimer=0;
+const LVD=["Agent 全部關閉","判斷研究範圍、搜尋文獻；研究問題由學生自己寫","另可產生研究問題草案","另可產生證據摘要"];
+const STAGES=["畫布討論","畫布讀取確認","範圍聚焦","範圍聚焦","搜尋準備","證據補強","整理階段"];
+const teachList=()=>projects.filter(q=>!LIVE()||roleIn(q)==="Teacher");
+const tAgentN=q=>(q.trace||[]).filter(t=>t.k==="ai").length;
+// 幾天沒有任何紀錄（只有線上模式的歷程有完整時間）
+const tIdle=q=>{const at=Math.max(0,...(q.trace||[]).map(t=>t.at||0));return at?Math.floor((Date.now()-at)/864e5):0};
+// 其他組的狀態有變動時重畫（稍等一下合併多次更新；畫面內容沒變就不動，避免捲動位置跳掉）
+function teachTick(){if(ROLE!=="t"||$("#v-teach").classList.contains("hide"))return;clearTimeout(tTimer);tTimer=setTimeout(renderTeach,250)}
+function drawMini(c,q){if(!c)return;const d=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight,x=c.getContext("2d"),fg=cssv("--fg");c.width=w*d;c.height=h*d;
+ x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,w,h);x.fillStyle=cssv("--line");for(let i=12;i<w;i+=24)for(let j=12;j<h;j+=24)x.fillRect(i,j,1.5,1.5);
+ const os=q.objs.filter(o=>o.type!=="link");
+ if(!os.length){x.fillStyle=cssv("--mute");x.font='13px "Noto Sans TC",sans-serif';x.fillText("畫布上還沒有內容",18,30);return}
+ const bs=os.map(bbox),x0=Math.min(...bs.map(b=>b.x)),y0=Math.min(...bs.map(b=>b.y))-16,x1=Math.max(...bs.map(b=>b.x+b.w)),y1=Math.max(...bs.map(b=>b.y+b.h));
+ const z=Math.min(1,(w-48)/Math.max(1,x1-x0),(h-48)/Math.max(1,y1-y0)),tx=(w-(x1-x0)*z)/2-x0*z,ty=(h-(y1-y0)*z)/2-y0*z;
+ x.setTransform(d*z,0,0,d*z,d*tx,d*ty);x.lineCap=x.lineJoin="round";
+ for(const o of q.objs){if(o.type!=="link")continue;const a=q.objs.find(k=>k.id===o.a),b=q.objs.find(k=>k.id===o.b);if(!a||!b)continue;const[ax,ay]=ctr(a),[bx,by]=ctr(b);x.strokeStyle=fg;x.lineWidth=1.6;x.beginPath();x.moveTo(ax,ay);x.lineTo(bx,by);x.stroke()}
+ for(const o of os){const col=U[o.by]?.c||fg;
+  if(o.type==="text"){const b=bbox(o);x.font='15px "Noto Sans TC",sans-serif';x.fillStyle=fg;x.fillText(o.text,o.x+7,o.y);x.strokeStyle=col;x.lineWidth=1.2;x.beginPath();x.roundRect(b.x,b.y,b.w,b.h,8);x.stroke();
+   x.fillStyle=col;x.font="11px sans-serif";x.fillText((U[o.by]?.n||"")+(o.tag?"・"+TAGS[o.tag]:""),b.x+2,b.y-4)}
+  else{x.strokeStyle=col;x.lineWidth=o.w;x.beginPath();o.pts.forEach((k,i)=>i?x.lineTo(k[0],k[1]):x.moveTo(k[0],k[1]));x.stroke()}}}
+function renderTeach(){const el=$("#v-teach"),all=teachList();
+ $("#tbadge").classList.remove("hide");
+ if(LIVE())all.forEach(attachLiveState); // 每一組的階段、Agent 次數、最近更新都要即時
+ const courses=[...new Set(all.map(q=>q.course||"未填課程"))];
+ if(tCourse&&!courses.includes(tCourse))tCourse="";
+ const list=all.filter(q=>!tCourse||(q.course||"未填課程")===tCourse),no=q=>all.filter(x=>(x.course||"")===(q.course||"")).indexOf(q)+1;
+ const prev=tSel;if(!list.includes(tSel)){tSel=list[0]||null;tLv=null}
+ if(prev&&prev!==tSel&&prev._unsubObjs){prev._unsubObjs();prev._unsubObjs=null}
+ if(tSel){p=tSel;S=p.S;if(!p.H){p.H=[JSON.stringify(p.objs)];p.hi=0}attachLiveObjects(p)}
+ const side=`<aside class="tside"><label for="tcs">課程</label><select id="tcs"><option value="">全部課程（${all.length} 組）</option>${courses.map(c=>`<option ${c===tCourse?"selected":""}>${esc(c)}</option>`).join("")}</select>
+  <div class="tlab">各組研究</div>${list.map(q=>{const idle=tIdle(q);return `<button class="tgrp ${q===tSel?"on":""}" data-tg="${projects.indexOf(q)}"><b>第 ${no(q)} 組・${esc(q.name)}</b><span class="${idle>=3?"idle":""}">${STAGES[q.S.step]||STAGES[0]}・${idle>=3?idle+" 天無更新":"Level "+q.LV+"・Agent "+tAgentN(q)+" 次"}</span></button>`}).join("")
+   ||`<p class="sm mute">${all.length?"這門課程沒有小組。":"還沒有小組邀請你擔任老師。請小組的 Owner 在「研究檔案」輸入你的 Email，角色選 Teacher，再把邀請連結給你。"}</p>`}</aside>`;
+ let main=`<main class="tmain"><p class="mute">從左側選擇一組查看。</p></main>`;
+ if(tSel){const q=tSel,lv=tLv??q.LV,rows=(q.trace||[]).filter(t=>t.k!=="sync").slice().reverse().slice(0,40),cells=health().flatMap(g=>g[1]);
+  main=`<main class="tmain"><div class="mute">${esc(q.course||"未填課程")}・第 ${no(q)} 組・截止 ${q.due||"未設定"}</div>
+   <div class="thead"><h1>${esc(q.name)}</h1><button id="topen">${I("ext")}開啟畫布（唯讀）</button></div>
+   <div class="tchips">${q.members.filter(m=>m.role!=="Teacher"&&U[m.u]).map(m=>`<span style="color:${U[m.u].c};background:color-mix(in srgb,${U[m.u].c} 11%,var(--bg))">${esc(U[m.u].n)}・${m.role}${m.duty?"・"+esc(m.duty):""}</span>`).join("")}<span class="tag m-${modeOf(q)}">${MODE_N[modeOf(q)]}</span></div>
+   ${q.req?`<p class="sm mute" style="margin:10px 0 0">老師要求：${esc(q.req)}</p>`:""}
+   <section class="tcard"><h2>研究進度</h2><p class="sm mute">與學生端「進度檢核」相同：每一項依實際完成的事實判定，不使用百分比。</p>
+    <div class="tprog">${cells.map(h=>`<div class="s-${h[1]}"><b>${h[0]}</b><span>${h[2]}</span></div>`).join("")}</div></section>
+   <section class="tcard"><h2>AI 權限設定</h2><p class="sm mute">決定 Research Agent 能協助這一組到什麼程度。學生看得到目前的等級，但無法修改；任何等級都不會代寫整份報告。</p>
+    <div class="lvs" role="radiogroup" aria-label="AI 權限等級">${LVN.map((n,l)=>`<label class="lvopt ${l===lv?"on":""}"><input type="radio" name="tlv" value="${l}" ${l===lv?"checked":""}><span><b>Level ${l}・${n}</b><span>${LVD[l]}</span></span></label>`).join("")}</div>
+    <div class="acts"><button class="pri" id="tsave" ${lv===q.LV?"disabled":""}>儲存設定</button><span class="sm mute" style="align-self:center">${lv===q.LV?"目前為 Level "+q.LV:"尚未儲存：Level "+q.LV+" → Level "+lv}</span></div></section>
+   <section class="tcard"><h2>分工</h2>${window.RFTEAM?`<p class="sm mute">兩種資訊請分開看：系統不會把它們合併成一個分數，整體分工是否合理由老師判斷。</p><div class="tgrid"><section>${activityHTML()}</section><section>${tasksHTML()}</section></div>`:teamHTML(true)}</section>
+   <section class="tcard"><div class="tch"><h2>AI 使用歷程</h2><span class="sm mute">與學生端「歷程」同一份紀錄・不含同步紀錄・最近 ${rows.length} 筆</span></div>
+    ${rows.length?`<table class="ttab"><thead><tr><th>時間</th><th>誰</th><th>做了什麼</th><th>類型</th></tr></thead><tbody>${rows.map(t=>{const block=t.k==="sys"&&/拒絕/.test(t.x);
+     return `<tr><td>${t.at?fmtAt(t.at):t.t}</td><td>${esc(t.w)}</td><td>${esc(t.x)}</td><td><span class="tag ${t.k==="ai"?"ai":block?"blk":""}">${t.k==="ai"?"Agent":block?"超出權限・已阻擋":t.k==="sys"?"權限":"學生"}</span></td></tr>`}).join("")}</tbody></table>`:`<p class="sm mute">還沒有紀錄。</p>`}</section>
+   <section class="tcard"><div class="tch"><h2>小組白板</h2><span class="sm mute">唯讀預覽・共 ${q.objs.filter(o=>o.type!=="link"&&!o.hwSub).length} 項內容</span></div><canvas id="tmini" aria-label="小組白板預覽"></canvas></section></main>`}
+ const html=side+main;
+ if(html!==tLast){tLast=html;el.innerHTML=`<div class="tlay">${html}</div>`;
+  const cs=$("#tcs");if(cs)cs.onchange=()=>{tCourse=cs.value;tSel=null;renderTeach()};
+  el.querySelectorAll("[data-tg]").forEach(b=>b.onclick=()=>{tSel=projects[+b.dataset.tg];tLv=null;renderTeach();scrollTo({top:0})});
+  el.querySelectorAll('input[name="tlv"]').forEach(r=>r.onchange=()=>{tLv=+r.value;renderTeach()});
+  const op=$("#topen");if(op)op.onclick=()=>openWs(projects.indexOf(tSel));
+  const sv=$("#tsave");if(sv)sv.onclick=async()=>{const q=tSel,lv=tLv;if(lv==null||lv===q.LV)return;sv.disabled=true;sv.textContent="儲存中…";
+   if(LIVE()){try{await RFDB.setAiLevel(q.fid,lv,U[ME].n);q.LV=lv}catch(err){alert("設定 AI 權限失敗："+(err?.message||err))}}
+   else{q.LV=lv;q.trace.push({t:nowT(),w:U[ME].n,x:`將 AI 權限設定為 Level ${lv}。`,k:"sys"})}
+   tLv=null;tLast="";renderTeach()};
+  bindTeam(el)}
+ if(tSel)drawMini($("#tmini"),tSel)}
 function renderPane(){const el=$("#pane");p.stage=S.step?stageOf():"畫布討論";$("#pst").textContent=p.stage;
  $("#pmode").textContent=MODE_N[MODE()];$("#pmode").className="tag m-"+MODE();
  if(pane==="agent")el.innerHTML=agentHTML();
