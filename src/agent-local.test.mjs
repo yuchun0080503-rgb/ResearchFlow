@@ -266,3 +266,24 @@ test('searchRelaxed：全部主題詞都要求時找不到，就把最後一個�
   const strict = await searchRelaxed({ keywords: ['social media', 'anxiety'], coreCount: 2, round: 0, mode: 'procon' }, svc);
   assert.deepEqual([strict.relaxed, strict.evidence[0].rel], [[], '高']);
 });
+
+test('keywordPairs：「自主判斷能力」要當成一個概念，不要拆成自主／判斷／能力', () => {
+  const pairs = keywordPairs('影響學生自主判斷能力');
+  assert.deepEqual(pairs.map((p) => p.zh), ['學生', '自主判斷能力']);
+  assert.equal(pairs[1].en, 'independent thinking');
+  // 已經被完整詞組涵蓋的不重複
+  assert.deepEqual(keywordPairs('過度依賴 AI').map((p) => p.en), ['artificial intelligence', 'overreliance']);
+});
+
+test('extractZhTerms：能力、判斷這類太籠統的詞不當關鍵字', () => {
+  const rank = (w) => ({ 自主: 5000, 判斷: 5001, 能力: 5002, 學生: 5003 })[w];
+  assert.deepEqual(extractZhTerms('影響學生自主判斷能力', rank), ['學生']);
+});
+
+test('relevance：用完整字詞比對，「AI」不會對到 said、training 裡的 ai', () => {
+  const core = ['artificial intelligence', 'independent thinking'];
+  const off = { title: 'Training programs for students with disabilities', abstract: 'Teachers said that critical thinking and autonomy remained hard to obtain.' };
+  const on = { title: 'Will the use of AI undermine students independent thinking?', abstract: '' };
+  assert.equal(relevance(off, core).ok, false);
+  assert.equal(relevance(on, core).ok, true);
+});

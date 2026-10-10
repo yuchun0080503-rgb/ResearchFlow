@@ -260,7 +260,7 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
 // 不存在或連不上，也只是靜靜留在 demo 模式——下面主程式完全不受影響，不會白屏。
 window.RF_MODE = "demo";
 // 手寫與圖示的自動偵測（src/ink.mjs）跟 Firebase 無關，展示模式也能用；載入失敗就退回手動輸入。
-window.RF_VER = "2026.10.10-7";
+window.RF_VER = "2026.10.10-8";
 // 查證模式的建議、主張轉研究問題、中文轉英文關鍵字都是純函式（src/agent-local.mjs），展示模式也用得到。
 try { window.RFAGENT = await import("./src/agent-local.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 agent-local.mjs：", err?.message || err); }
 try {
@@ -304,12 +304,30 @@ const hasZh=s=>/[一-鿿]/.test(s);
 const kwBusy=new Set(); // 正在翻譯的關鍵字（只存在本機）
 // 從一段中文（論點、主張）抽出主題詞放到關鍵字最前面，並翻成英文。查詢只用前幾個關鍵字，所以主題詞要排在聚焦條件（對象、情境）前面。
 // 同時把它們記成「主題詞」（S.kwCore）：搜尋結果的標題或摘要必須提到每一個主題詞；其餘關鍵字是用來縮小範圍的範圍詞。
+// 主題詞怎麼決定（依序）：
+//  1. 題目（專案名稱）的主題——主張常常省略主詞（題目是「AI 與學生學習」，主張只寫「影響學生自主判斷能力」），少了它搜尋就會離題；
+//  2. 這段文字裡內建對照表認得的概念（整個詞組，例如「自主判斷能力」）；
+//  3. 詞庫斷出來的其他詞。
+// 研究對象（學生、老師）和太籠統的詞（學習）只在主題詞不到 2 個時才補上，否則當範圍詞。
 function addTopicKw(text){if(!window.RFAGENT||!window.RFINK)return;
+ S.kwEn=S.kwEn||{};S.kwV=2;
+ const put=x=>{const k=x.zh||x.en;if(x.zh&&!S.kwEn[x.zh])S.kwEn[x.zh]=x.en;if(!S.kw.includes(k))S.kw.push(k);return k};
+ const enOf=k=>S.kwEn[k]||k,broad=k=>/students|teachers|children|adolescents|parents|^learning$/.test(enOf(k));
+ const subj=RFAGENT.keywordPairs(((p&&p.name)||"").replace(/期[末中]|報告|作業|專題|研究|探討|分析|小論文/g," ")).map(put),named=RFAGENT.keywordPairs(text).map(put);
+ // 已經被完整詞組涵蓋的零碎詞不要（有「自主判斷能力」就不要「自主」「判斷」）
  const terms=RFAGENT.extractZhTerms(text,RFINK.lexRank).filter(t=>!S.kw.some(k=>k!==t&&hasZh(k)&&(k.includes(t)||t.includes(k))));
- const named=RFAGENT.keywordPairs(text).map(x=>x.zh||x.en).filter(k=>S.kw.includes(k)); // 內建對照表在這段文字裡認得的詞
- // 研究對象（…students、teachers）排在主題詞的最後：查詢最多用 3 個主題詞，主題本身比對象重要
- const who=k=>/students|teachers|children/.test((S.kwEn||{})[k]||k),core=[...new Set([...terms,...named])].sort((a,b)=>who(a)-who(b));
- if(!core.length)return;S.kwCore=core;S.kw=[...core,...S.kw.filter(k=>!core.includes(k))];terms.forEach(t=>{if(!(S.kwEn||{})[t])translateKw(t)})}
+ const mine=[...new Set([...named,...terms])],focus=mine.filter(k=>!broad(k));
+ const covered=k=>focus.some(z=>RFAGENT.termGroup(enOf(z)).join("|").toLowerCase().includes(enOf(k).toLowerCase()));
+ const lead=subj.filter(k=>!broad(k)&&!focus.includes(k)&&!covered(k)).slice(0,focus.length?1:2);
+ let core=[...lead,...focus];
+ if(core.length<2)core=[...core,...[...mine,...subj].filter(k=>!core.includes(k))].slice(0,2);
+ if(!core.length)return;
+ const old=(S.kwCore||[]).filter(k=>!core.includes(k)&&hasZh(k)&&!RFAGENT.keywordPairs(k).length&&!RFAGENT.extractZhTerms(k,RFINK.lexRank).length); // 舊版留下的零碎詞（能力、判斷…）
+ S.kwCore=core;S.kw=[...core,...S.kw.filter(k=>!core.includes(k)&&!old.includes(k))];terms.forEach(t=>{if(!S.kwEn[t])translateKw(t)})}
+// 舊版產生的關鍵字（沒有 kwV 記號）在回到確認頁時重新整理一次
+function upgradeKw(){if(!LIVE()||!window.RFAGENT||!window.RFINK||(S.kwV||0)>=2||!S.kw.length)return;
+ const text=S.claim||(S.rd||[]).map(getO).filter(o=>o&&o.type!=="link"&&o.tag!=="question").map(o=>o.type==="text"?o.text:o.aiRead).filter(Boolean).join("。");
+ addTopicKw(text);saveS()}
 // 送去搜尋的關鍵字：主題詞排前面。英文搜尋國際文獻（中文關鍵字用它的英文翻譯），中文另外直接搜尋中文文獻。
 // 舊的研究沒有記主題詞時，把前兩個關鍵字當主題詞。
 const kwIsCore=k=>{const core=(S.kwCore||[]).filter(x=>S.kw.includes(x));return core.length?core.includes(k):S.kw.indexOf(k)<2};
@@ -320,10 +338,13 @@ function kwSets(){const core=(S.kwCore||[]).filter(k=>S.kw.includes(k)),isCore=k
  const claim=S.claim||((S.rd||[]).map(getO).find(o=>o&&o.tag==="claim")||{}).text||S.q0||"";
  return{keywords:ordered.map(en).filter(Boolean),keywordsZh:ordered.filter(hasZh),coreCount:Math.max(1,S.kw.filter(isCore).map(en).filter(Boolean).length),coreZh:Math.max(1,S.kw.filter(k=>isCore(k)&&hasZh(k)).length),
   claimNeg:!!(window.RFAGENT&&RFAGENT.isNegativeClaim(claim))}}
-function translateKw(k){if(!window.RFAGENT||!hasZh(k)||kwBusy.has(k))return;kwBusy.add(k);
+function translateKw(k,manual){if(!window.RFAGENT||!hasZh(k)||kwBusy.has(k))return;kwBusy.add(k);
  RFAGENT.translateTerm(k).then(r=>{kwBusy.delete(k);if(!S.kw.includes(k))return;(S.kwEn=S.kwEn||{})[k]=r.en;
   // 機器翻譯的詞比較不可靠：記下來，組查詢時排在主題詞的最後（找不到文獻時最先被放寬）
-  S.kwWeak=(S.kwWeak||[]).filter(x=>x!==k).concat(r.via==="機器翻譯"?[k]:[]);saveS();if(pane==="agent"&&S.step===4)renderPane()},()=>{kwBusy.delete(k);if(pane==="agent"&&S.step===4)renderPane()})}
+  S.kwWeak=(S.kwWeak||[]).filter(x=>x!==k).concat(r.via==="機器翻譯"?[k]:[]);
+  // 機器翻譯常常翻錯；當成「一定要出現」的主題詞會把結果帶偏。已經有 2 個可靠的主題詞時，系統自己抽出的這種詞降為範圍詞（學生自己加的不動）
+  if(r.via==="機器翻譯"&&!manual&&S.kwCore&&S.kwCore.filter(x=>x!==k&&!S.kwWeak.includes(x)&&S.kw.includes(x)).length>=2)S.kwCore=S.kwCore.filter(x=>x!==k);
+  saveS();if(pane==="agent"&&S.step===4)renderPane()},()=>{kwBusy.delete(k);if(pane==="agent"&&S.step===4)renderPane()})}
 const LIVE=()=>window.RF_MODE==="live";
 /* 查證模式：每個專案有一個預設（q.mode，Owner 建立專案後選），每一次查證可以在確認頁再改（S.mode）。 */
 const MODE_N={procon:"正反例證模式",claim:"主張論證模式"};
@@ -785,7 +806,7 @@ function body(){const s=S.step,sc=S.scope;
  if(s===2){const broad=S.tooBroad!==false,rs=S.scopeReasons||["使用「是否能幫助」等高度概括的問法","未指定研究對象與情境","缺乏明確時間範圍","同時包含效果、風險與學術誠信等不同層次"];
   return `<h3>Agent 判定：${broad?"研究範圍過於廣泛":"研究範圍已足夠聚焦"}</h3>${S.q0?`<div class="box sm"><b>初步研究問題</b><br>${esc(S.q0)}</div>`:""}${rs.map(x=>`<div class="hl sm"><span>${I(broad?"alert":"check")}${esc(x)}</span></div>`).join("")}<p class="sm mute">${broad?"Agent 不會替你們縮小問題，也不會立刻搜尋，會先提出引導式問題。":"接下來請確認研究問題與搜尋策略；確認之前 Agent 不會搜尋。"}</p><div class="acts"><button class="pri" data-a="ask">${broad&&QS().length?"開始聚焦":"繼續"}</button></div>`}
  if(s===3)return `<h3>聚焦問題</h3>`+(QS().length?"":`<p class="sm mute">Agent 認為目前的範圍不需要再追問，可以直接進入研究問題。</p>`)+QS().map(q=>`<div class="sm">${esc(q[0])}</div><div class="chips">${q[2].map(x=>`<button data-q="${esc(q[1])}" data-v="${esc(x)}" class="${sc[q[1]]===x?"on":""}">${esc(x)}</button>`).join("")}${LIVE()?`<input data-qo="${esc(q[1])}" value="${esc(sc[q[1]]&&!q[2].includes(sc[q[1]])?sc[q[1]]:"")}" placeholder="其他（自行輸入）" style="width:150px;font-size:13px;padding:3px 10px;border-radius:99px">`:""}</div>`).join("")+(p.LV>=2?`<div class="acts"><button class="pri" data-a="rq" ${QS().some(q=>!sc[q[1]])?"disabled":""}>產生 Research Question</button></div>`:`<div class="sm mute">此作業未開放研究問題建議，請由小組自行撰寫。</div><input id="myrq" placeholder="輸入你們的 Research Question" style="margin-top:8px"><div class="acts"><button class="pri" data-a="myrq" ${QS().some(q=>!sc[q[1]])?"disabled":""}>使用這個研究問題</button></div>`);
- if(s===4){const rows=S.strat?[...S.strat.map(r=>[r.label,r.value]),["搜尋方式","只比對文獻的標題與摘要，而且每個主題詞（或它的同義詞）都要出現；結果依相關度排序"]]:[["研究對象",sc.who],["研究工具","生成式 AI"],["研究情境",sc.ctx],["主要結果",sc.out],["限制／反向結果","認知依賴、批判思考"],["時間範圍","2020–2026"],["證據類型","實證研究（實驗、調查、縱貫）"]];
+ if(s===4){upgradeKw();const rows=S.strat?[...S.strat.map(r=>[r.label,r.value]),["搜尋方式","只比對文獻的標題與摘要，而且每個主題詞（或它的同義詞）都要出現；結果依相關度排序"]]:[["研究對象",sc.who],["研究工具","生成式 AI"],["研究情境",sc.ctx],["主要結果",sc.out],["限制／反向結果","認知依賴、批判思考"],["時間範圍","2020–2026"],["證據類型","實證研究（實驗、調查、縱貫）"]];
   const m=MODE(),cm=m==="claim",cands=p.objs.filter(o=>o.type==="text"&&o.tag!=="evidence"&&o.tag!=="question").map(o=>o.text);
   const modeBox=`<div class="box sm mode-${m}"><b>${I("search")}目前的查證模式：${MODE_N[m]}</b>${modeTable(m)}
    <div class="chips" style="margin:8px 0 0">${["procon","claim"].map(x=>`<button data-a="mode" data-k="${x}" class="${x===m?"on":""}">${MODE_N[x]}${x===(p.mode||"procon")?"（專案預設）":""}</button>`).join("")}</div></div>`
@@ -911,7 +932,7 @@ function act(a,k){const w=U[ME].n,L=p.LV;
  if(a==="kwx"&&S.kwEn)Object.keys(S.kwEn).forEach(z=>{if(!S.kw.includes(z))delete S.kwEn[z]});
  if(a==="kwx"&&S.kwCore)S.kwCore=S.kwCore.filter(z=>S.kw.includes(z));
  // 自己加的關鍵字預設是主題詞（會特地加，通常就是想要結果一定提到它）
- if(a==="kwa"){const v=$("#kwi").value.trim();if(v&&!S.kw.includes(v)){S.kwCore=S.kw.filter(kwIsCore).concat(v);S.kw.push(v);translateKw(v)}}
+ if(a==="kwa"){const v=$("#kwi").value.trim();if(v&&!S.kw.includes(v)){S.kwCore=S.kw.filter(kwIsCore).concat(v);S.kw.push(v);translateKw(v,true)}}
  if(a==="kwcore"){const z=S.kw[+k],core=S.kw.filter(kwIsCore);S.kwCore=core.includes(z)?core.filter(x=>x!==z):core.concat(z);if(!S.kwCore.length){alert("至少要保留一個主題詞。");S.kwCore=[z]}}
  if(a==="kwen"){const z=S.kw[+k],v=prompt(`「${z}」的英文關鍵字（留空代表只搜尋中文文獻）：`,(S.kwEn||{})[z]||"");if(v!==null){(S.kwEn=S.kwEn||{})[z]=v.trim();S.kwWeak=(S.kwWeak||[]).filter(x=>x!==z)}}
  if(a==="back3"||a==="kwedit"){S.step=a==="kwedit"?4:3;log(w,a==="kwedit"?"要求修改搜尋方向。":"回到範圍聚焦。")}

@@ -78,6 +78,39 @@ const TERMS = [
   [/研究生|碩士|博士/, 'graduate students'],
   [/教師|老師/, 'teachers'],
   [/學生/, 'students'],
+  // 常見的「研究在看什麼」：整個詞組當成一個概念，不要拆成零碎的字（自主／判斷／能力）各自去翻譯
+  [/(?:自主|獨立)(?:判斷|思考)(?:的?能力|力)?|判斷的?能力|判斷力|思考的?能力|思考力/, 'independent thinking'],
+  [/問題解決|解決問題/, 'problem solving'],
+  [/學習動機/, 'learning motivation'],
+  [/學習態度/, 'learning attitudes'],
+  [/學習成效|學習成果|學習效果/, 'learning outcomes'],
+  [/自我效能/, 'self-efficacy'],
+  [/自信心?/, 'self-confidence'],
+  [/人際關係|人際互動|社交能力/, 'interpersonal relationships'],
+  [/溝通能力|表達能力/, 'communication skills'],
+  [/認知負荷/, 'cognitive load'],
+  [/決策/, 'decision-making'],
+  [/隱私/, 'privacy'],
+  [/假訊息|假新聞|不實訊息/, 'misinformation'],
+  [/媒體識讀|媒體素養/, 'media literacy'],
+  [/AI\s*素養|人工智慧素養/i, 'AI literacy'],
+  [/數位素養|資訊素養/, 'digital literacy'],
+  [/短影音|短影片/, 'short-form video'],
+  [/孤獨|寂寞/, 'loneliness'],
+  [/時間管理/, 'time management'],
+  [/拖延/, 'procrastination'],
+  [/學業壓力|課業壓力/, 'academic stress'],
+  [/近視|視力/, 'myopia'],
+  [/身體意象|容貌焦慮/, 'body image'],
+  [/合作學習|小組合作|協作學習/, 'collaborative learning'],
+  [/翻轉教室|翻轉教學/, 'flipped classroom'],
+  [/遊戲化/, 'gamification'],
+  [/程式設計|寫程式|程式教育/, 'programming education'],
+  [/倫理|道德/, 'ethics'],
+  [/偏見|歧視/, 'bias'],
+  [/就業|工作機會|失業/, 'employment'],
+  [/環保|環境保護/, 'environmental protection'],
+  [/過度依賴/, 'overreliance'],
   [/課堂|上課/, 'classroom learning'],
   [/自主學習|自學/, 'self-directed learning'],
   [/寫作|報告|作業/, 'academic writing'],
@@ -121,7 +154,6 @@ const TERMS = [
   [/打工/, 'part-time work'],
   [/同儕/, 'peer influence'],
   [/家長|父母/, 'parents'],
-  [/學習成效/, 'learning outcomes'],
   [/學習/, 'learning'],
 ];
 
@@ -131,6 +163,8 @@ export function keywordPairs(text) {
   const out = [];
   for (const [re, en] of TERMS) {
     const hit = String(text).match(re);
+    // 已經被前面較完整的詞組涵蓋的不重複（有「過度依賴」就不要再加「依賴」）
+    if (hit && out.some((p) => p.zh && p.zh.includes(hit[0]))) continue;
     if (hit && !out.some((p) => p.en === en)) out.push({ zh: /[一-鿿]/.test(hit[0]) ? hit[0].replace(/\s+/g, '') : '', en });
   }
   for (const w of String(text).match(/[A-Za-z][A-Za-z-]{3,}/g) || []) {
@@ -146,7 +180,7 @@ export function keywordPairs(text) {
 // 詞表最前面 DOMAIN_WORDS 個是手動加入的研究常用詞（一定保留）；接在後面的 COMMON_WORDS 個是最常見的詞
 // （多半是「可能」「因為」這類）不要；下面的功能詞也不要。剩下的依出現順序取前幾個。
 const DOMAIN_WORDS = 104, COMMON_WORDS = 150;
-const STOP_ZH = new Set('可能 因為 所以 但是 而且 如果 雖然 或者 以及 還是 就是 不是 沒有 這個 那個 這些 那些 我們 他們 你們 自己 大家 什麼 怎麼 為什麼 是否 需要 應該 可以 能夠 已經 正在 比較 非常 真的 確認 產生 造成 導致 使得 提高 提升 降低 減少 增加 改善 變得 變差 變好 使用 進行 認為 覺得 發現 表示 研究 問題 影響 結果 情況 方面 部分 時候 之後 之前 以後 以前 目前 現在 很多 一些 一個 一定 一樣 不同 相關 關係 幫助 有幫助 重要 主要 一般 其他 例如 包括 對於 關於 根據 透過 經過'.split(' '));
+const STOP_ZH = new Set('可能 因為 所以 但是 而且 如果 雖然 或者 以及 還是 就是 不是 沒有 這個 那個 這些 那些 我們 他們 你們 自己 大家 什麼 怎麼 為什麼 是否 需要 應該 可以 能夠 已經 正在 比較 非常 真的 確認 產生 造成 導致 使得 提高 提升 降低 減少 增加 改善 變得 變差 變好 使用 進行 認為 覺得 發現 表示 研究 問題 影響 結果 情況 方面 部分 時候 之後 之前 以後 以前 目前 現在 很多 一些 一個 一定 一樣 不同 相關 關係 幫助 有幫助 重要 主要 一般 其他 例如 包括 對於 關於 根據 透過 經過 能力 程度 狀況 狀態 方式 方法 效果 發展 過度 現象 行為 內容 過程 作用 因素 條件 水準 水平 高低 好壞 多少 自主 獨立 判斷 思考'.split(' '));
 export function extractZhTerms(text, rankOf, max = 4) {
   const src = String(text || ''), out = [];
   for (const run of src.match(/[一-鿿]+/g) || []) {
@@ -298,9 +332,21 @@ const SYNONYMS = {
   teachers: ['educators', 'instructors'],
   students: ['learners'],
   'generative ai': ['ChatGPT', 'large language models', 'generative artificial intelligence'],
-  'artificial intelligence': ['AI', 'machine learning'],
+  'artificial intelligence': ['AI', 'ChatGPT', 'generative AI'],
   'academic performance': ['academic achievement', 'grades', 'GPA'],
   'critical thinking': ['higher-order thinking'],
+  'independent thinking': ['critical thinking', 'judgment', 'judgement', 'learner autonomy', 'cognitive offloading', 'decision-making', 'independent judgment'],
+  overreliance: ['over-reliance', 'dependence', 'dependency', 'reliance'],
+  'problem solving': ['problem-solving'],
+  'learning motivation': ['motivation', 'engagement'],
+  'learning outcomes': ['academic performance', 'learning performance', 'academic achievement'],
+  'self-efficacy': ['self efficacy'],
+  'decision-making': ['decision making'],
+  misinformation: ['fake news', 'disinformation'],
+  'short-form video': ['TikTok', 'short video'],
+  loneliness: ['social isolation'],
+  'collaborative learning': ['cooperative learning'],
+  ethics: ['ethical'],
   'social media': ['social networking sites', 'Instagram'],
   sleep: ['sleep quality', 'sleep duration'],
   anxiety: ['anxious'],
@@ -394,9 +440,11 @@ export async function searchRelaxed({ keywords, coreCount = 2, round, mode, minH
  * 一篇文獻跟題目的相關度。
  * @returns {{ok:boolean, score:number, coreHit:number, inTitle:number}} ok：每個主題詞（或它的同義詞）都出現在標題或摘要
  */
+const hasWord = (text, term) => new RegExp('(?<![a-z0-9])' + String(term).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[\s-]+/g, '[\\s-]+') + '(?:e?s)?(?![a-z0-9])').test(text);
 export function relevance(work, core, scope = []) {
   const title = String(work.title || '').toLowerCase(), body = String(work.abstract || '').toLowerCase();
-  const hit = (term, text) => termGroup(term).some((t) => text.includes(t.toLowerCase()));
+  // 以完整的字詞比對：用 includes 的話，「AI」會對到 said、training 裡面的 ai，等於沒有檢查
+  const hit = (term, text) => termGroup(term).some((t) => hasWord(text, t));
   let score = 0, coreHit = 0, inTitle = 0;
   for (const c of core) {
     if (hit(c, title)) { score += 3; coreHit++; inTitle++; } else if (hit(c, body)) { score += 1.5; coreHit++; }
