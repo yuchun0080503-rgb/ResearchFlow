@@ -20,7 +20,11 @@
       "src/sync.mjs",
       "tools/**",
       "**/*.command",
-      "**/*.bat"
+      "**/*.bat",
+      ".git/**",
+      "**/.git/**",
+      ".firebase/**",
+      "**/*.log"
     ],
     "rewrites": [
       {
