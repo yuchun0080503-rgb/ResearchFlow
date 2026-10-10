@@ -78,7 +78,8 @@ header{height:64px;display:flex;align-items:center;gap:16px;padding:0 28px;posit
 .ab{width:34px;height:34px;border-radius:10px;background:var(--bg);display:grid;place-items:center;flex:none;box-shadow:0 0 0 1px var(--line);color:var(--ac)}
 .flow{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
 .flow span{font-size:11.5px;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--mute)}
-.flow .go{cursor:pointer;text-decoration:underline;text-underline-offset:3px}.flow .go:hover{background:var(--ok);color:#fff}
+#boot{display:none}.boot #boot{display:grid;place-items:center;position:fixed;inset:64px 0 0;color:var(--mute);font-size:14px;z-index:30;background:var(--page)}.boot #v-login{visibility:hidden}
+.flow .go{cursor:pointer;transition:background .15s,color .15s}.flow .go:hover,.flow .go:focus-visible{background:var(--ac);color:#fff}
 .flow .d{background:color-mix(in srgb,var(--ok) 16%,var(--soft));color:var(--ok)}.flow .c{background:var(--ac);color:#fff}
 .box{border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:10px 0}
 .warn{border-color:var(--warn)}
@@ -244,6 +245,8 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
   </div>
 </header>
 
+<script>try{if(localStorage.getItem("rf.in"))document.documentElement.classList.add("boot")}catch(e){}</script>
+<div id="boot">載入中…</div>
 <section id="v-login"><div class="bub b1" aria-hidden="true">想法</div><div class="bub b2" aria-hidden="true">研究問題</div><div class="bub b3" aria-hidden="true">反向證據</div><div class="bub b4" aria-hidden="true">來源驗證</div><div class="big">
   <h1>先理解你們在研究什麼，<br>再幫你們發現還缺什麼。</h1>
   <p class="mute">小組在共同畫布上討論想法，Research Agent 整理研究範圍、搜尋正反證據，最後的判斷由你們決定。</p>
@@ -287,7 +290,7 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
       <div class="tools" role="toolbar" aria-label="畫布工具">
         <button id="undo" title="返回上一個操作 (Ctrl+Z)" aria-label="返回上一個操作"><i data-i="undo"></i></button><button id="redo" title="取消返回 (Ctrl+Shift+Z)" aria-label="取消返回"><i data-i="redo"></i></button><span class="vr"></span>
         <button data-t="sel" class="on"><i data-i="ptr"></i>選取</button><button data-t="hand"><i data-i="hand"></i>平移</button><button data-t="pen"><i data-i="pen"></i>手寫</button><button data-t="txt"><i data-i="type"></i>文字</button><button data-t="link"><i data-i="arrow"></i>連線</button><button data-t="era"><i data-i="era"></i>擦除</button>
-        <input type="range" id="pw" min="1" max="8" value="3" aria-label="筆畫粗細"><span class="sm mute" id="hws" style="align-self:center;padding:0 8px"></span>
+        <input type="range" id="pw" min="1" max="8" value="3" aria-label="筆畫粗細"><span class="sm mute" id="hws" style="align-self:center;padding:0 8px"></span><button id="pens" title="觸控筆與手指的設定" aria-label="觸控筆與手指的設定"><i data-i="pen"></i><span id="penl"></span></button>
       </div>
       <canvas id="cv" aria-label="無限研究畫布"></canvas>
       <div class="insp hide" id="insp"></div>
@@ -302,14 +305,14 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
   </aside>
 </div></section>
 
-<dialog id="pd"></dialog><dialog id="tm"></dialog><dialog id="pf"></dialog>
+<dialog id="ps"></dialog><dialog id="pd"></dialog><dialog id="tm"></dialog><dialog id="pf"></dialog>
 
 <script type="module">
 // 第一步地基：Firebase Auth + Firestore。這段用動態 import，所以就算 firebase-config.js
 // 不存在或連不上，也只是靜靜留在 demo 模式——下面主程式完全不受影響，不會白屏。
 window.RF_MODE = "demo";
 // 手寫與圖示的自動偵測（src/ink.mjs）跟 Firebase 無關，展示模式也能用；載入失敗就退回手動輸入。
-window.RF_VER = "2026.10.11-1";
+window.RF_VER = "2026.10.11-2";
 // 查證模式的建議、主張轉研究問題、中文轉英文關鍵字都是純函式（src/agent-local.mjs），展示模式也用得到。
 try { window.RFTEAM = await import("./src/teamwork.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 teamwork.mjs：", err?.message || err); }
 // 本機模型：使用者電腦上的 Ollama（Qwen）。有偵測到時，關鍵字規劃、翻譯、文獻判讀、手寫辨識都交給它；沒有就用規則式。
@@ -461,7 +464,7 @@ $("#avb").onclick=e=>{e.stopPropagation();$("#menu").classList.toggle("hide")};
 addEventListener("click",e=>{if(!e.target.closest("#menu"))$("#menu").classList.add("hide")});
 $("#brand").onclick=()=>{if(!$("#hr").classList.contains("hide"))leaveWs()};
 $("#out").onclick=()=>{$("#menu").classList.add("hide");
- projects.forEach(detachLive);tSel=null;entered="";LS("rf.open","");
+ projects.forEach(detachLive);tSel=null;entered="";LS("rf.open","");LS("rf.in","");
  if(unsubProjects){unsubProjects();unsubProjects=null}
  if(LIVE()){projects.length=0;p=null;RFDB.signOutUser().catch(()=>{})}
  show("login")};
@@ -484,17 +487,19 @@ let unsubProjects=null;
 // 記在這台瀏覽器裡的小設定（身分、上次開著的研究與分頁），重新整理後用來回到原本的畫面；瀏覽器不給存就算了
 const LS=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k)||"";if(v==="")localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){}return""};
 let entered="",restored=false;
+// 上次有登入過（rf.in）的話，載入時先顯示「載入中」蓋住登入畫面，等確定登入狀態、回到原本的畫面後才拿掉；最多蓋 8 秒
+const unboot=()=>document.documentElement.classList.remove("boot");setTimeout(unboot,8000);
 // 登入成功之後（按登入、或重新整理後 Firebase 自動恢復登入）進入系統
 async function enterLive(fu){if(entered===fu.uid)return;entered=fu.uid;restored=false;
  const prof=await RFDB.ensureUserProfile(fu);
- ME=fu.uid;LS("rf.role",ROLE);
+ ME=fu.uid;LS("rf.role",ROLE);LS("rf.in","1");
  U[ME]={n:prof.displayName,c:prof.color||CO[hashCode(fu.uid)%CO.length],email:prof.email,id:fu.uid};
  renderAv();$("#hi").textContent=ROLE==="t"?"老師，你好":"嗨，"+U[ME].n;$("#form").classList.toggle("hide",ROLE==="t");$("#tnote").classList.toggle("hide",ROLE!=="t");
  const qs=new URLSearchParams(location.search),join=qs.get("join");
  if(join&&join.includes(":")){const[pid,token]=join.split(":");try{await RFDB.redeemInvite(pid,token,ME,myProfile());history.replaceState(null,"",location.pathname)}catch(err){alert("加入專案失敗："+(err?.message||err))}}
  attachLiveProjects();show("proj")}
 // 研究清單第一次載入後：重新整理前如果正開著某一份研究，直接回到那一份（連同當時的分頁）
-function restoreOpen(){if(restored)return;restored=true;const fid=LS("rf.open"),i=projects.findIndex(q=>q.fid===fid);if(!fid||i<0)return;
+function restoreOpen(){if(restored)return;restored=true;setTimeout(unboot,60);const fid=LS("rf.open"),i=projects.findIndex(q=>q.fid===fid);if(!fid||i<0)return;
  const tab=LS("rf.pane");openWs(i);const b=tab&&document.querySelector('.tabs button[data-p="'+tab+'"]');if(b)b.click()}
 let regMode=false; // true：這次按下的是「註冊新帳號」
 let gMode=false; // true：這次按下的是「使用 Google 帳號登入」
@@ -531,7 +536,9 @@ function onReady(){$("#login").disabled=false;
 addEventListener("rf:ready",onReady);
 // 重新整理後：Firebase 會記得登入狀態，偵測到就直接進入（身分沿用上次選的學生／老師），不用再登入一次
 addEventListener("rf:ready",()=>{if(!LIVE()||!RFDB.watchAuth)return;const r=LS("rf.role");if(r==="t"||r==="s"){ROLE=r;$$(".seg button").forEach(x=>x.classList.toggle("on",x.dataset.r===r))}
- RFDB.watchAuth(u=>{if(u&&!entered&&!$("#v-login").classList.contains("hide"))enterLive(u).catch(err=>console.error("[ResearchFlow] 恢復登入失敗：",err))})});
+ RFDB.watchAuth(u=>{if(!u){if(!entered){LS("rf.in","");unboot()}return}
+  if(!entered&&!$("#v-login").classList.contains("hide"))enterLive(u).catch(err=>{console.error("[ResearchFlow] 恢復登入失敗：",err);unboot()})})});
+addEventListener("rf:ready",()=>{if(!LIVE())unboot()});
 function attachLiveProjects(){
  if(unsubProjects)unsubProjects();
  $("#cnt").textContent="讀取中…";
@@ -806,28 +813,61 @@ let erased=0;
 function eraseAt(q){const t=10/p.v.z+4;const o=[...p.objs].reverse().find(o=>o.type==="link"?(getO(o.a)&&getO(o.b)&&dseg(q,ctr(getO(o.a)),ctr(getO(o.b)))<t):o.type==="stroke"?o.pts.some((z,i)=>(i?dseg(q,o.pts[i-1],z):Math.hypot(z[0]-q[0],z[1]-q[1]))<t+o.w):inB(q,bbox(o)));
  if(o){p.objs=p.objs.filter(x=>x!==o&&x.a!==o.id&&x.b!==o.id);sel.delete(o.id);erased++;draw()}}
 const grpIds=o=>o.group?p.objs.filter(x=>x.group===o.group).map(x=>x.id):[o.id];
-cv.onpointerdown=e=>{e.preventDefault();if(e.pointerType==="pen")penSeen=true;else if(penSeen&&tool==="pen"&&e.pointerType==="touch")return;cv.setPointerCapture(e.pointerId);const q=toW(e);last=[e.clientX,e.clientY];moved=false;
- if(tool==="hand"||e.button===1||space){dm="pan";return}
+/* 觸控筆與手指：
+   偵測到這台裝置用過觸控筆（會記住）→ 手指只負責拖移畫布，寫字交給筆；沒有用過筆 → 手指可以直接書寫。兩指隨時可以縮放與拖移。
+   筆的橡皮擦端（或橡皮擦鍵）按著時就是橡皮擦；筆的側鍵與「筆尖在同一個地方快點兩下」可以自訂成切換橡皮擦或復原上一步。
+   （Apple Pencil 筆身的雙擊手勢只有原生 App 收得到，網頁讀不到，所以用筆尖雙擊代替。）設定存在這台瀏覽器裡。 */
+const PEN={finger:()=>LS("rf.finger")||"auto",tap:()=>LS("rf.pentap")||"era",side:()=>LS("rf.penside")||"era"};
+const fingerPans=()=>PEN.finger()==="pan"||(PEN.finger()==="auto"&&penSeen);
+const setTool=t=>{const b=document.querySelector('.tools [data-t="'+t+'"]');if(b&&!b.disabled)b.click()};
+let eraBack="";const penDo=act=>{if(act==="undo"){undo();setStat("觸控筆：復原上一步")}else if(act==="era"){if(tool==="era"){setTool(eraBack||"pen");setStat("觸控筆：切回"+(tool==="pen"?"手寫":"原本的工具"))}else{eraBack=tool;setTool("era");setStat("觸控筆：切換為橡皮擦（再做一次切回來）")}}};
+const tp=new Map();let pz=null,tapAt=null,holdEra=false,pd=null;
+cv.onpointerdown=e=>{e.preventDefault();
+ if(e.pointerType==="pen"&&!penSeen){penSeen=true;LS("rf.pen","1");hwLabel()}
+ if(e.pointerType==="touch"){tp.set(e.pointerId,[e.clientX,e.clientY]);
+  if(tp.size===2){const[a,b]=[...tp.values()];cur=null;mq=null;dm="pinch";pz={d:Math.hypot(a[0]-b[0],a[1]-b[1])||1,mx:(a[0]+b[0])/2,my:(a[1]+b[1])/2};draw();return}}
+ try{cv.setPointerCapture(e.pointerId)}catch(err){}const q=toW(e);last=[e.clientX,e.clientY];moved=false;
+ pd={t:e.timeStamp,x:e.clientX,y:e.clientY,pen:e.pointerType==="pen",mv:0};
+ if(tool==="hand"||e.button===1||space||(e.pointerType==="touch"&&fingerPans())){dm="pan";return}
  if(!canEdit())return;
+ if(e.pointerType==="pen"){ // 橡皮擦端／橡皮擦鍵：按著時當橡皮擦；側鍵：依設定
+  if((e.buttons&32)||e.button===5){dm="era";holdEra=true;erased=0;eraseAt(q);return}
+  if((e.buttons&2)||e.button===2){const a=PEN.side();if(a==="era"){dm="era";holdEra=true;erased=0;eraseAt(q)}else if(a==="undo")penDo("undo");return}}
  if(tool==="pen")cur=[[q[0],q[1],e.timeStamp]];
  else if(tool==="txt")openEd(null,q);
  else if(tool==="era"){dm="era";erased=0;eraseAt(q)}
  else if(tool==="link"){const o=hit(q);if(!o)return;if(!linkFrom){linkFrom=o.id}else if(linkFrom!==o.id){p.objs.push(mkO({type:"link",by:ME,a:linkFrom,b:o.id}));linkFrom=null;op("建立內容之間的關係連線")}draw()}
  else{const o=hit(q);if(o){if(!sel.has(o.id)){if(!e.shiftKey)sel.clear();grpIds(o).forEach(i=>sel.add(i))}dm="move"}else{if(!e.shiftKey)sel.clear();mq=[...q,...q];dm="mq"}insp();draw()}};
 cv.onpointermove=e=>{if(!p)return;const q=toW(e);
+ if(e.pointerType==="pen"&&!penSeen){penSeen=true;LS("rf.pen","1");hwLabel()} // 筆懸停在螢幕上方就算偵測到
+ if(pd)pd.mv=Math.max(pd.mv,Math.hypot(e.clientX-pd.x,e.clientY-pd.y));
+ if(e.pointerType==="touch"&&tp.has(e.pointerId)){tp.set(e.pointerId,[e.clientX,e.clientY]);
+  if(dm==="pinch"&&tp.size>=2&&pz){const[a,b]=[...tp.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1])||1,mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,r=cv.getBoundingClientRect();
+   zoomAt(d/pz.d,mx-r.left,my-r.top);p.v.x+=mx-pz.mx;p.v.y+=my-pz.my;pz={d,mx,my};draw();return}}
  if(dm==="pan"){p.v.x+=e.clientX-last[0];p.v.y+=e.clientY-last[1];last=[e.clientX,e.clientY];draw()}
  else if(cur){for(const c of(e.getCoalescedEvents?e.getCoalescedEvents():[e])){const w=toW(c);cur.push([w[0],w[1],c.timeStamp])}rdraw()}
  else if(dm==="move"){const dx=(e.clientX-last[0])/p.v.z,dy=(e.clientY-last[1])/p.v.z;last=[e.clientX,e.clientY];moved=true;
   sel.forEach(id=>{const o=getO(id);if(!o)return;if(o.type==="text"){o.x+=dx;o.y+=dy}else{o.pts=o.pts.map(z=>[z[0]+dx,z[1]+dy]);o.orig&&(o.orig=o.orig.map(z=>[z[0]+dx,z[1]+dy]))}});draw()}
  else if(dm==="era"){for(const c of(e.getCoalescedEvents?e.getCoalescedEvents():[e]))eraseAt(toW(c))}
  else if(dm==="mq"){mq[2]=q[0];mq[3]=q[1];draw()}};
-cv.onpointerup=()=>{ // 事件式同步：完成操作後才傳送
- if(cur){if(cur.length>1){const so=mkO({type:"stroke",by:ME,pts:cur,w:+$("#pw").value});p.objs.push(so);op("完成一筆手寫（Pencil Up 後同步完整 Stroke）");queueHW(so)}cur=null}
- else if(dm==="era"){if(erased)op(erased>1?"擦除 "+erased+" 個物件":"刪除物件");erased=0}
+cv.onpointerup=e=>{ // 事件式同步：完成操作後才傳送
+ if(e&&e.pointerType==="touch"){tp.delete(e.pointerId);if(dm==="pinch"){if(tp.size<2){dm=null;pz=null}return}}
+ // 筆尖雙擊：很短、幾乎沒有移動的一點，緊接著在同一個地方再點一下 → 執行自訂動作（手寫或橡皮擦狀態下都可以），兩個點都不留在畫布上
+ const tap=e&&pd&&pd.pen&&!holdEra&&pd.mv<7&&e.timeStamp-pd.t<220&&PEN.tap()!=="none"&&(tool==="pen"||tool==="era");pd=null;
+ if(tap&&tapAt&&e.timeStamp-tapAt.t<420&&Math.hypot(e.clientX-tapAt.x,e.clientY-tapAt.y)<26){const id=tapAt.id;tapAt=null;cur=null;
+  if(dm==="era"&&erased)op(erased>1?"擦除 "+erased+" 個物件":"刪除物件");erased=0;dm=null;
+  if(id&&getO(id)&&p.objs[p.objs.length-1].id===id)undo(); // 拿掉第一下留下的那個點
+  penDo(PEN.tap());insp();draw();return}
+ if(cur){
+  let id="";if(cur.length>1){const so=mkO({type:"stroke",by:ME,pts:cur,w:+$("#pw").value});p.objs.push(so);op("完成一筆手寫（Pencil Up 後同步完整 Stroke）");queueHW(so);id=so.id}
+  tapAt=tap?{t:e.timeStamp,x:e.clientX,y:e.clientY,id}:null;
+  cur=null}
+ else if(dm==="era"){if(erased)op(erased>1?"擦除 "+erased+" 個物件":"刪除物件");erased=0;holdEra=false;tapAt=tap?{t:e.timeStamp,x:e.clientX,y:e.clientY,id:""}:null}
  else if(dm==="move"&&moved){sel.forEach(id=>{const o=getO(id);if(o){o.mod=ME;o.ver++}});op("移動物件（放開後同步最終位置）")}
  else if(dm==="mq"){const x1=Math.min(mq[0],mq[2]),x2=Math.max(mq[0],mq[2]),y1=Math.min(mq[1],mq[3]),y2=Math.max(mq[1],mq[3]);
   p.objs.forEach(o=>{if(o.type==="link")return;const b=bbox(o);if(b.x<x2&&b.x+b.w>x1&&b.y<y2&&b.y+b.h>y1)grpIds(o).forEach(i=>sel.add(i))});mq=null}
  dm=null;insp();draw()};
+cv.onpointercancel=e=>{tp.delete(e.pointerId);if(tp.size<2&&dm==="pinch"){dm=null;pz=null}else cv.onpointerup(e)};
 cv.addEventListener("wheel",e=>{e.preventDefault();if(!p)return;const v=p.v;if(e.ctrlKey||e.metaKey)zoomAt(e.deltaY<0?1.1:1/1.1,e.clientX-cv.getBoundingClientRect().left,e.clientY-cv.getBoundingClientRect().top);else{v.x-=e.deltaX;v.y-=e.deltaY}draw()},{passive:false});
 function zoomAt(f,sx,sy){const v=p.v,z=Math.max(.2,Math.min(4,v.z*f)),k=z/v.z;v.x=sx-(sx-v.x)*k;v.y=sy-(sy-v.y)*k;v.z=z}
 $("#zi").onclick=()=>{const r=cv.getBoundingClientRect();zoomAt(1.2,r.width/2,r.height/2);draw()};$("#zo").onclick=()=>{const r=cv.getBoundingClientRect();zoomAt(1/1.2,r.width/2,r.height/2);draw()};
@@ -925,7 +965,7 @@ function updStale(){const e=$("#stl");if(e){e.innerHTML=stale();bind(e)}}
 function agentHTML(){const s=S.step;
  const st=["待命，等待你們分析研究方向。","等待你們確認手寫與內容的讀取結果。","研究範圍偏廣，需要先聚焦。","等待你們回答聚焦問題。","等待你們確認研究問題與搜尋策略。",`已搜尋 ${S.rounds}／3 輪，等待你們決定下一步。`,"證據已確認完成，可以開始整理報告。"][s];
  return `<div class="ah"><span class="ab">${SPARK(26)}</span><div><b>Research Agent</b><div class="sm mute">${st}</div></div></div>
- <div class="flow">${STEPS.map((x,i)=>(i===3||i===4)&&i<s&&LIVE()&&canEdit()?`<span class="d go" data-a="jump" data-k="${i}" role="button" tabindex="0" title="回到這一步修改">${x}</span>`:`<span class="${i<s?"d":i===s?"c":""}">${x}</span>`).join("")}</div>${s>3&&LIVE()&&canEdit()?`<p class="sm mute" style="margin:-4px 0 8px">想修改之前的回答，可以點上面的「聚焦提問」或「確認策略」回去改；已經找到的證據會保留。</p>`:""}
+ <div class="flow">${STEPS.map((x,i)=>i!==s&&i<=Math.max(s,S.max||0)&&canEdit()?`<span class="${i<s?"d":""} go" data-a="jump" data-k="${i}" role="button" tabindex="0" title="${i<s?"回到這一步修改":"回到剛才的進度"}">${x}</span>`:`<span class="${i<s?"d":i===s?"c":""}">${x}</span>`).join("")}</div>${Math.max(s,S.max||0)>0&&canEdit()?`<p class="sm mute" style="margin:-4px 0 8px">點上方任何一個走過的步驟都可以回去修改，已經找到的證據會保留。</p>`:""}
  <div class="hl sm"><span>Canvas 版本</span><span>分析 ${S.ver?"v"+S.ver:"—"}／最新 v${p.ver}</span></div><div class="hl sm"><span>${LIVE()?"搜尋輪數":"Token 用量與搜尋輪數（示範）"}</span><span>${LIVE()?"":S.tok.toLocaleString()+" / 60,000　"}${S.rounds}／3</span></div>
  <div id="stl">${stale()}</div>`+(busy?`<div class="box sm warn"><b>Agent 處理中</b><div class="mute">${esc(busy)}</div></div>`:"")+(p.LV===0?lockedHTML():body())+repBtn()}
 // 聚焦問題：live 模式用 Agent 針對這份畫布提出的問題（S.qs3），demo 模式用內建範例。格式統一成 [問題, 代號, 選項]
@@ -1130,10 +1170,10 @@ function renderTeach(){const el=$("#v-teach"),all=teachList();
    tLv=null;tLast="";renderTeach()};
   bindTeam(el)}
  if(tSel)drawMini($("#tmini"),tSel)}
-function renderPane(){const el=$("#pane");p.stage=S.step?stageOf():"畫布討論";$("#pst").textContent=p.stage;
+function renderPane(){const el=$("#pane");if(S&&(S.max||0)<S.step)S.max=S.step;p.stage=S.step?stageOf():"畫布討論";$("#pst").textContent=p.stage;
  $("#pmode").textContent=MODE_N[MODE()];$("#pmode").className="tag m-"+MODE();
  if(pane==="agent")el.innerHTML=agentHTML();
- if(pane==="ev")el.innerHTML=evHTML();
+ if(pane==="ev"){el.innerHTML=evHTML();setTimeout(zhFill,200)}
  if(pane==="hl"){const H=t=>`<h3>${t}</h3>`;
   el.innerHTML=`<div class="stage"><span class="sb">${I("pulse")}</span><div><b>${stageOf()}</b><div class="sm mute" style="margin-top:2px">${p.LV>=2?next():"此作業尚未開放建議"}</div></div></div>`
    +health().map(([t,list])=>H(t)+list.map(h=>`<div class="hl"><span>${h[0]}</span><span><span class="st"><i class="dot ${h[1]}"></i>${h[2]}</span>${h[3]}</span></div>`).join("")).join("")
@@ -1159,12 +1199,17 @@ async function zhFor(id){const e=()=>[...S.ev,...(S.saved||[])].filter(x=>x.id==
  const put=t=>document.querySelectorAll('[data-zh="'+CSS.escape(String(id))+'"]').forEach(n=>n.textContent=t);
  try{let zh="";
   if(AI()&&(e0.ab||e0.fo||e0.f)){put("中文摘要產生中…");zh=await RFAI.summarizeZh(e0.t,e0.ab||e0.fo||e0.f);if(zh)zh+="（"+AIN().replace(/（.*$/,"")+" 整理，請對照原文）"}
-  else if(window.RFAGENT&&RFAGENT.toZh){put("中文摘要翻譯中…");zh=await RFAGENT.toZh(e0.fo||e0.f);if(zh)zh+="（機器翻譯摘要節錄，僅供參考）"}
+  else if(window.RFAGENT&&RFAGENT.toZh){put("中文摘要翻譯中…");zh=await RFAGENT.toZh(e0.ab||e0.fo||e0.f);if(zh)zh+="（機器翻譯，僅供參考）"}
   if(zh){e().forEach(x=>x.zh=zh);put(zh);saveS()}else put(evZh(e0)||"無法產生中文摘要，請閱讀原文。")}
  catch(err){console.warn("[ResearchFlow] 產生中文摘要失敗：",err?.message||err);put(evZh(e0)||"無法產生中文摘要，請閱讀原文。")}
  finally{zhBusy.delete(id)}}
 // 搜尋完成後在背景逐篇產生（只有本機模型才這樣做；免費翻譯服務有每日額度，留給學生真的展開的那幾篇）
-async function zhFill(){if(!AI())return;const proj=p;for(const id of S.ev.filter(e=>!e.zh&&e.lang!=="zh").map(e=>e.id)){if(p!==proj||!AI())return;await zhFor(id)}}
+let zhRun=false;
+async function zhFill(){if(zhRun||!LIVE()||!p||!canEdit())return;zhRun=true;const proj=p;
+ try{for(const id of [...S.ev,...(S.saved||[])].filter(e=>!e.zh&&!e.zhx&&e.lang!=="zh").map(e=>e.id)){if(p!==proj)return;await zhFor(id);
+   const e=[...S.ev,...(S.saved||[])].find(x=>x.id===id);if(e&&!e.zh)e.zhx=1; // 產生失敗的這次不再重試，避免一直打翻譯服務
+   if(!AI())await new Promise(r=>setTimeout(r,400))}}
+ finally{zhRun=false}}
 // 中文文獻在公開資料庫裡收錄有限，所以另外給一個用中文關鍵字到 Google 學術搜尋自己找的連結（開新分頁，由學生自己判斷與引用）
 const zhMore=()=>{const z=S.kw.filter(hasZh).slice(0,3);return LIVE()&&z.length?`<p class="sm mute" style="margin-top:14px">中文文獻不夠？可以用同樣的關鍵字到 <a href="https://scholar.google.com/scholar?hl=zh-TW&lr=lang_zh-TW&q=${encodeURIComponent(z.join(" "))}" target="_blank" rel="noopener noreferrer">Google 學術搜尋（繁體中文）</a> 自己找，找到的文獻可以用文字工具加到畫布上。</p>`:""};
 // 例證的中文說明：模型整理的摘要（zh）優先，其次是模型判讀時寫的一句主要發現
@@ -1178,7 +1223,7 @@ function evHTML0(){if(!S.ev.length)return `<h3>Evidence Map</h3><p class="sm mut
  // 「加入畫布」時可以選這筆證據要支撐哪個主張：預設選主張論證模式正在論證的那個，或證據上記錄的相關論點，否則第一個
  const claimOpts=contentObjs().filter(o=>o.tag==="claim"),guessClaim=e=>(claimOpts.find(o=>objLabel(o)===(S.claim||"").slice(0,24))||claimOpts.find(o=>e.c&&(o.text||o.aiRead)===e.c)||claimOpts[0]||{}).id;
  const src=e=>/^https:\/\//.test(e.url||"")?`<p><a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">開啟原始來源</a>${e.au?"　"+esc(e.au):""}${e.vn?"．"+esc(e.vn):""}</p>`:"";
- const item=(e,i)=>`<details class="ev ${e.k==="c"?"cn":""} ${e.v?"":"un"}" data-ei="${i}"><summary><b>${esc(e.t)}</b>（${esc(e.y)}）<span class="tag">${LIVE()?esc(e.src||"OpenAlex"):"示範"}</span>${e.lang==="zh"?' <span class="tag">中文文獻</span>':""}${e.rel?` <span class="tag">相關度${esc(e.rel)}</span>`:""}${e.ai?` <span class="tag ai">${esc(e.ai.replace(/（.*$/,""))} 判讀</span>`:""}${e.mix?' <span class="tag">有條件成立</span>':""}${e.unc?' <span class="tag">立場待確認</span>':""}${isSaved(e)?' <span class="tag ai">已收藏</span>':""}<div class="evzh" data-zh="${esc(e.id)}">${esc(evZh(e)||(e.lang==="zh"?"":"展開後會產生中文摘要"))}</div></summary>${src(e)}<p>研究對象：${esc(e.p)}　方法：${esc(e.m)}${e.lv?"　證據力："+esc(e.lv):""}</p><p>${e.ai?"主要發現（"+esc(e.ai)+" 依摘要整理，請對照原文）":LIVE()?"摘要節錄":"主要發現"}：${esc(e.f)}</p>${e.ai&&e.fo?`<p class="sm mute">摘要原文節錄：${esc(e.fo)}</p>`:""}<p>研究限制：${esc(e.l)}</p><p>${e.k==="c"?"相關":"支持"} Claim：${esc(e.c||"—")}</p><p>搜尋關鍵字：${esc(e.q)}</p><p>範圍比對：${esc(e.sc)}　${esc(e.d)}證據${e.u?"　探索性搜尋結果":""}</p><p><i class="dot ${e.v?"g":"y"}"></i>${e.v?"來源已驗證":"來源待驗證，暫不列為研究證據"}</p>${e.auto?`<p><i class="dot y"></i>支持／反向為依摘要用語的初步分類，請閱讀原文後確認或改列</p>`:""}<div class="acts" style="margin-top:6px">${e.auto&&canEdit()?`<button data-a="confirmk" data-k="${i}" style="font-size:12px;padding:2px 9px">確認分類</button>`:""}${LIVE()&&canEdit()?(MODE()==="claim"&&e.k==="s"?`<button data-a="drop" data-k="${i}" style="font-size:12px;padding:2px 9px">不支持這個主張，移除</button>`:`<button data-a="flip" data-k="${i}" style="font-size:12px;padding:2px 9px">改列為${e.k==="c"?"支持":"反向／限制"}</button>`):""}${e.v?"":`<button data-a="verify" data-k="${i}" style="font-size:12px;padding:2px 9px">驗證來源</button>`}${canEdit()&&claimOpts.length?`<select data-ec="${i}" aria-label="這筆證據要支撐哪個主張" style="font-size:12px;padding:2px 6px;max-width:190px"><option value="">不連到主張</option>${claimOpts.map(o=>`<option value="${esc(o.id)}" ${o.id===guessClaim(e)?"selected":""}>支撐：${esc(objLabel(o))}</option>`).join("")}</select>`:""}<button data-a="save" data-k="${i}" style="font-size:12px;padding:2px 9px" ${canEdit()?"":"disabled"}>${isSaved(e)?"取消收藏":"收藏"}</button><button data-a="tocv" data-k="${i}" style="font-size:12px;padding:2px 9px" ${canEdit()?"":"disabled"}>加入畫布</button></div></details>`;
+ const item=(e,i)=>`<details class="ev ${e.k==="c"?"cn":""} ${e.v?"":"un"}" data-ei="${i}"><summary><b>${esc(e.t)}</b>（${esc(e.y)}）<span class="tag">${LIVE()?esc(e.src||"OpenAlex"):"示範"}</span>${e.lang==="zh"?' <span class="tag">中文文獻</span>':""}${e.rel?` <span class="tag">相關度${esc(e.rel)}</span>`:""}${e.ai?` <span class="tag ai">${esc(e.ai.replace(/（.*$/,""))} 判讀</span>`:""}${e.mix?' <span class="tag">有條件成立</span>':""}${e.unc?' <span class="tag">立場待確認</span>':""}${isSaved(e)?' <span class="tag ai">已收藏</span>':""}<div class="evzh" data-zh="${esc(e.id)}">${esc(evZh(e)||(e.lang==="zh"||e.zhx?"":"中文摘要產生中…"))}</div></summary>${src(e)}<p>研究對象：${esc(e.p)}　方法：${esc(e.m)}${e.lv?"　證據力："+esc(e.lv):""}</p><p>${e.ai?"主要發現（"+esc(e.ai)+" 依摘要整理，請對照原文）":LIVE()?"摘要節錄":"主要發現"}：${esc(e.f)}</p>${e.ai&&e.fo?`<p class="sm mute">摘要原文節錄：${esc(e.fo)}</p>`:""}<p>研究限制：${esc(e.l)}</p><p>${e.k==="c"?"相關":"支持"} Claim：${esc(e.c||"—")}</p><p>搜尋關鍵字：${esc(e.q)}</p><p>範圍比對：${esc(e.sc)}　${esc(e.d)}證據${e.u?"　探索性搜尋結果":""}</p><p><i class="dot ${e.v?"g":"y"}"></i>${e.v?"來源已驗證":"來源待驗證，暫不列為研究證據"}</p>${e.auto?`<p><i class="dot y"></i>支持／反向為依摘要用語的初步分類，請閱讀原文後確認或改列</p>`:""}<div class="acts" style="margin-top:6px">${e.auto&&canEdit()?`<button data-a="confirmk" data-k="${i}" style="font-size:12px;padding:2px 9px">確認分類</button>`:""}${LIVE()&&canEdit()?(MODE()==="claim"&&e.k==="s"?`<button data-a="drop" data-k="${i}" style="font-size:12px;padding:2px 9px">不支持這個主張，移除</button>`:`<button data-a="flip" data-k="${i}" style="font-size:12px;padding:2px 9px">改列為${e.k==="c"?"支持":"反向／限制"}</button>`):""}${e.v?"":`<button data-a="verify" data-k="${i}" style="font-size:12px;padding:2px 9px">驗證來源</button>`}${canEdit()&&claimOpts.length?`<select data-ec="${i}" aria-label="這筆證據要支撐哪個主張" style="font-size:12px;padding:2px 6px;max-width:190px"><option value="">不連到主張</option>${claimOpts.map(o=>`<option value="${esc(o.id)}" ${o.id===guessClaim(e)?"selected":""}>支撐：${esc(objLabel(o))}</option>`).join("")}</select>`:""}<button data-a="save" data-k="${i}" style="font-size:12px;padding:2px 9px" ${canEdit()?"":"disabled"}>${isSaved(e)?"取消收藏":"收藏"}</button><button data-a="tocv" data-k="${i}" style="font-size:12px;padding:2px 9px" ${canEdit()?"":"disabled"}>加入畫布</button></div></details>`;
  const li=k=>S.ev.map((e,i)=>e.k===k?item(e,i):"").join("")||`<p class="sm mute">尚無資料</p>`;
  // 主張論證模式：只列支持主張的證據，依證據力分層；反面例證只有小組要求過才出現在最下面
  if(MODE()==="claim"){const sup=S.ev.map((e,i)=>[e,i]).filter(x=>x[0].k==="s"),grp=f=>sup.filter(x=>f(lvOf(x[0]))).map(x=>item(x[0],x[1])).join("")||`<p class="sm mute">尚無資料</p>`;
@@ -1209,7 +1254,7 @@ function act(a,k){const w=U[ME].n,L=p.LV;
  if(a==="kwa"){const v=$("#kwi").value.trim();if(v&&!S.kw.includes(v)){S.kwCore=S.kw.filter(kwIsCore).concat(v);S.kw.push(v);translateKw(v,true)}}
  if(a==="kwcore"){const z=S.kw[+k],core=S.kw.filter(kwIsCore);S.kwCore=core.includes(z)?core.filter(x=>x!==z):core.concat(z);if(!S.kwCore.length){alert("至少要保留一個主題詞。");S.kwCore=[z]}}
  if(a==="kwen"){const z=S.kw[+k],v=prompt(`「${z}」的英文關鍵字（留空代表只搜尋中文文獻）：`,(S.kwEn||{})[z]||"");if(v!==null){(S.kwEn=S.kwEn||{})[z]=v.trim();S.kwWeak=(S.kwWeak||[]).filter(x=>x!==z)}}
- if(a==="jump"){if(busy)return;S.step=+k;log(w,"回到「"+STEPS[+k]+"」修改。")}
+ if(a==="jump"){if(busy)return;S.max=Math.max(S.max||0,S.step);log(w,(+k<S.step?"回到「":"前往「")+STEPS[+k]+"」。");S.step=+k}
  if(a==="back3"||a==="kwedit"){S.step=a==="kwedit"?4:3;log(w,a==="kwedit"?"要求修改搜尋方向。":"回到範圍聚焦。")}
  // 查證模式與要查證的主張（確認頁）。換主張時把研究問題換成針對這個主張的寫法，並補上從主張抽出的關鍵字
  if(a==="mode"&&MODE()!==k){S.rq=$("#rqi")?$("#rqi").value:S.rq;S.mode=k;log(w,"這次查證改用「"+MODE_N[k]+"」。")}
@@ -1310,10 +1355,21 @@ async function actLive(a,w){
 icons();
 
 /* 手寫辨識：裝置內建 Handwriting API 優先，否則用 Claude 讀取筆跡圖片；辨識結果一律待使用者確認 */
-var HW=null,SAMP=null,hwQ=[],hwT=0,penSeen=false,raf=0;
+var HW=null,SAMP=null,hwQ=[],hwT=0,penSeen=LS("rf.pen")==="1",raf=0;
 function rdraw(){if(!raf)raf=requestAnimationFrame(()=>{raf=0;draw()})}
 let hwErr=""; // 最近一次手寫辨識失敗的原因（顯示在工具列，方便知道是連不上還是認不出來）
-function hwLabel(){const e=$("#hws");if(!e)return;
+function penLabel(){const l=$("#penl");if(l)l.textContent=fingerPans()?"手指：拖移":"手指：書寫"}
+function openPS(){const d=$("#ps"),opt=(v,cur,t)=>`<option value="${v}" ${v===cur?"selected":""}>${t}</option>`;
+ d.innerHTML=`<h2>觸控筆與手指</h2>
+ <label for="ps1">手指在畫布上</label><select id="ps1">${opt("auto",PEN.finger(),"自動："+(penSeen?"偵測到觸控筆，手指只拖移畫布":"沒有偵測到觸控筆，手指可以書寫"))+opt("pan",PEN.finger(),"只拖移畫布（用筆書寫）")+opt("draw",PEN.finger(),"可以書寫")}</select>
+ <label for="ps2">筆尖在同一個地方快點兩下</label><select id="ps2">${opt("era",PEN.tap(),"切換橡皮擦／手寫")+opt("undo",PEN.tap(),"復原上一步")+opt("none",PEN.tap(),"不做任何事")}</select>
+ <label for="ps3">按住筆的側鍵</label><select id="ps3">${opt("era",PEN.side(),"當橡皮擦（放開就恢復）")+opt("undo",PEN.side(),"復原上一步")+opt("none",PEN.side(),"不做任何事")}</select>
+ <p class="note" style="margin-top:14px">兩指可以縮放與拖移畫布。筆的橡皮擦端（或橡皮擦鍵）按著時一律是橡皮擦。Apple Pencil 筆身的雙擊手勢只有原生 App 收得到，網頁無法讀取，所以改用「筆尖快點兩下」。這些設定只存在這台裝置。</p>
+ <div class="acts" style="justify-content:flex-end;margin-top:18px"><button id="psr">重新偵測觸控筆</button><button class="pri" id="psc">完成</button></div>`;
+ $("#ps1").onchange=e=>{LS("rf.finger",e.target.value==="auto"?"":e.target.value);penLabel()};$("#ps2").onchange=e=>LS("rf.pentap",e.target.value);$("#ps3").onchange=e=>LS("rf.penside",e.target.value);
+ $("#psr").onclick=()=>{penSeen=false;LS("rf.pen","");penLabel();openPS()};$("#psc").onclick=()=>d.close();if(!d.open)d.showModal()}
+$("#pens").onclick=openPS;
+function hwLabel(){penLabel();const e=$("#hws");if(!e)return;
  e.textContent=hwErr?"手寫辨識失敗："+hwErr:window.RFINK||HW||SAMP?"手寫與圖示：自動偵測":"手寫辨識：手動輸入";
  e.title="ResearchFlow "+(window.RF_VER||"")+(hwErr?"　辨識服務連不上時，請在「確認理解」步驟手動輸入":"");e.style.color=hwErr?"var(--bad)":""}
 (async()=>{try{if(navigator.createHandwritingRecognizer)HW=await navigator.createHandwritingRecognizer({languages:["zh-TW","en"]})}catch(e){}

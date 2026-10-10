@@ -227,9 +227,16 @@ export async function translateTerm(term, fetchImpl = fetch) {
 export async function toZh(text, fetchImpl = fetch) {
   const src = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 450);
   if (!src || hasZh(src)) return '';
-  const res = await fetchImpl('https://api.mymemory.translated.net/get?' + new URLSearchParams({ q: src, langpair: 'en|zh-TW' }));
-  const out = res.ok ? (await res.json()).responseData?.translatedText : '';
-  return typeof out === 'string' && hasZh(out) && !/MYMEMORY WARNING|QUERY LENGTH/i.test(out) ? out.trim() : '';
+  try {
+    const res = await fetchImpl('https://api.mymemory.translated.net/get?' + new URLSearchParams({ q: src, langpair: 'en|zh-TW' }));
+    const out = res.ok ? (await res.json()).responseData?.translatedText : '';
+    if (typeof out === 'string' && hasZh(out) && !/MYMEMORY WARNING|QUERY LENGTH/i.test(out)) return out.trim();
+  } catch { /* 換下一個 */ }
+  // MyMemory 每天的額度用完或連不上時：改用 Google 翻譯的公開端點（同樣不需要金鑰；偶爾會夾雜簡體字）
+  const res = await fetchImpl('https://translate.googleapis.com/translate_a/single?' + new URLSearchParams({ client: 'gtx', sl: 'en', tl: 'zh-TW', dt: 't', q: src }));
+  const parts = res.ok ? (await res.json())?.[0] : null;
+  const out = Array.isArray(parts) ? parts.map((p) => (Array.isArray(p) ? p[0] || '' : '')).join('') : '';
+  return hasZh(out) ? out.trim() : '';
 }
 
 export function keywordsFrom(text) {
