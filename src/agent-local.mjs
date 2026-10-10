@@ -364,7 +364,13 @@ const SYNONYMS = {
   exercise: ['physical activity'],
 };
 // 一個關鍵字連同它的同義詞
-export const termGroup = (term) => [String(term).trim(), ...(SYNONYMS[String(term).trim().toLowerCase()] || [])].filter(Boolean);
+// 這一次搜尋額外的同義詞（由本機模型 Qwen 規劃搜尋時提供，見 agent-llm.mjs 的 planSearch）。key 一律小寫。
+let EXTRA_SYNONYMS = {};
+export function setExtraSynonyms(map) {
+  EXTRA_SYNONYMS = {};
+  for (const [k, v] of Object.entries(map && typeof map === 'object' ? map : {})) if (Array.isArray(v)) EXTRA_SYNONYMS[String(k).trim().toLowerCase()] = v.filter((x) => typeof x === 'string' && x.trim()).slice(0, 4);
+}
+export const termGroup = (term) => { const key = String(term).trim().toLowerCase(); return [...new Set([String(term).trim(), ...(EXTRA_SYNONYMS[key] || []), ...(SYNONYMS[key] || [])].filter(Boolean))]; };
 const quote = (t) => (/\s/.test(t) ? `"${t}"` : t);
 
 // OpenAlex 對布林運算子超過 5 個的查詢有每秒一次的限制，所以每條查詢最多用 5 個 AND／OR：
@@ -421,19 +427,20 @@ export function buildQueries(keywords, round, mode = 'procon', coreCount = 2) {
  * 所以呼叫端要把最重要、翻譯最可靠的主題詞排在前面。
  * @returns 與 searchEvidence 相同，另外多 relaxed：被降為範圍詞的主題詞（英文）
  */
-export async function searchRelaxed({ keywords, coreCount = 2, round, mode, minHits = 4, ...rest }, fetchImpl = fetch) {
+export async function searchRelaxed({ keywords, coreCount = 2, round, mode, minHits = 4, limit = 10, synonyms, ...rest }, fetchImpl = fetch) {
+  setExtraSynonyms(synonyms);
   const start = buildQueries(keywords, round, mode, coreCount).core.length;
   let out = null, n = start, queries = [];
   for (; n >= Math.min(2, start); n--) {
     const plan = buildQueries(keywords, round, mode, n);
-    const got = await searchEvidence({ ...rest, ...plan, keywords }, fetchImpl);
+    const got = await searchEvidence({ ...rest, ...plan, keywords, limit }, fetchImpl);
     queries = [...queries, ...got.queries.filter((q) => !queries.includes(q))];
     // 放寬後找到的也併進來，但嚴格條件找到的排前面
     out = out ? { ...got, evidence: [...out.evidence, ...got.evidence.filter((e) => !out.evidence.some((x) => x.id === e.id)).map((e) => ({ ...e, rel: '中' }))], dropped: out.dropped + got.dropped, fallback: out.fallback || got.fallback } : got;
     if (out.evidence.filter((e) => e.lang !== 'zh').length >= minHits) break;
   }
   const kept = Math.max(n, Math.min(2, start));
-  return { ...out, evidence: out.evidence.slice(0, 10), scanned: Math.min(10, out.evidence.length), queries, relaxed: buildQueries(keywords, round, mode, start).core.slice(kept) };
+  return { ...out, evidence: out.evidence.slice(0, limit), scanned: Math.min(limit, out.evidence.length), queries, relaxed: buildQueries(keywords, round, mode, start).core.slice(kept) };
 }
 
 /**
@@ -535,13 +542,14 @@ export function classifyWork(work, kind, keywords = [], claimNeg = false) {
     d: kws.length && matched >= Math.ceil(kws.length / 2) ? '直接' : '間接',
     v: Boolean(work.doi),
     auto: true, // 規則式初步分類，尚未經小組確認
+    _ab: String(work.abstract || '').slice(0, 900), // 完整一點的摘要：只給本機模型判讀用，判讀完就丟掉，不會存進資料庫
   };
 }
 
 // queries／core／scope：buildQueries 的輸出（英文，國際文獻）；zhQueries／keywordsZh：中文查詢與中文關鍵字（中文文獻）。
 // 兩邊至少要有一邊。流程：查詢（只比對標題與摘要）→ 丟掉沒有提到全部主題詞的 → 依相關度排序 → 每一輪最多 10 篇（中文最多 4 篇）。
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-export async function searchEvidence({ queries, kind, keywords, core, scope, excludeIds, zhQueries, keywordsZh, coreZh, claimNeg = false }, fetchImpl = fetch) {
+export async function searchEvidence({ queries, kind, keywords, core, scope, excludeIds, zhQueries, keywordsZh, coreZh, claimNeg = false, limit = 10 }, fetchImpl = fetch) {
   const en = clampQueries(queries, 300), zh = clampQueries(zhQueries);
   if (!en.length && !zh.length) throw new Error('沒有可用的搜尋關鍵字，請先在上一步新增關鍵字。');
   const run = async (q, opts) => {
@@ -595,7 +603,7 @@ export async function searchEvidence({ queries, kind, keywords, core, scope, exc
   const bonus = (w) => (w.q === en[0] ? 1.5 : 0);
   const enRanked = pool(false).map((w) => ({ w, r: relevance(w, coreEn, scopeEn) })).filter((x) => x.r.ok).sort((a, b) => b.r.score + bonus(b.w) - a.r.score - bonus(a.w));
   const zhRanked = pool(true).map((w) => ({ w, n: zhScore(w) })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
-  const zhPick = zhRanked.slice(0, 4), enPick = enRanked.slice(0, 10 - zhPick.length);
+  const zhPick = zhRanked.slice(0, 4), enPick = enRanked.slice(0, limit - zhPick.length);
   const evidence = [
     ...enPick.map(({ w, r }) => ({ ...classifyWork(w, kind, [...coreEn, ...scopeEn], claimNeg), src: w.src || 'OpenAlex', sc: `主題詞 ${r.coreHit}／${coreEn.length}（標題 ${r.inTitle}）`, d: r.inTitle === coreEn.length ? '直接' : '間接', rel: r.inTitle === coreEn.length ? '高' : '中' })),
     ...zhPick.map(({ w }) => ({ ...classifyWork(w, kind, zhKeys, claimNeg), rel: zhKeys.every((k) => w.title.includes(k)) ? '高' : '中' })),

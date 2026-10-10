@@ -17,7 +17,10 @@
       "README.md",
       "src/firebase-config.example.js",
       "src/permissions.mjs",
-      "src/sync.mjs"
+      "src/sync.mjs",
+      "tools/**",
+      "**/*.command",
+      "**/*.bat"
     ],
     "rewrites": [
       {

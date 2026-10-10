@@ -124,6 +124,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 #tbadge{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:600}
 @media(max-width:860px){.tlay{grid-template-columns:1fr;padding:12px 16px 56px}.tside{position:static}.thead h1{font-size:24px}.tcard{padding:18px}.ttab td:nth-child(3){min-width:180px}.tcard{overflow-x:auto}}
 .lor{display:flex;align-items:center;gap:12px;margin:14px 0 10px;color:var(--mute);font-size:12.5px}.lor::before,.lor::after{content:"";flex:1;height:1px;background:var(--line)}
+.aiby{color:var(--ac);margin:0 0 8px;display:flex;gap:6px;align-items:flex-start}.aiby .ic{flex:none;margin:2px 0 0;width:15px;height:15px}
 .tsub{margin:-4px 0 10px}
 .trow{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:8px 0;align-items:start}
 .tname{display:flex;justify-content:space-between;align-items:baseline;font-size:13.5px}.tname span{color:var(--mute);font-size:12px}
@@ -279,7 +280,7 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
 
 <section id="v-ws" class="hide"><div id="ws">
   <div class="cv">
-    <div class="pbar"><button id="back"><i data-i="back"></i>返回</button><b id="pt"></b><span class="tag" id="pst"></span><span class="tag" id="rolelab"></span><span class="tag" id="pmode"></span><span class="sp"></span><span id="pres" class="stack"></span><button id="rpt"><i data-i="ext"></i>小組報告</button><button id="cfg"><i data-i="gear"></i>研究檔案</button></div>
+    <div class="pbar"><button id="back"><i data-i="back"></i>返回</button><b id="pt"></b><span class="tag" id="pst"></span><span class="tag" id="rolelab"></span><span class="tag" id="pmode"></span><span class="tag" id="aimodel"></span><span class="sp"></span><span id="pres" class="stack"></span><button id="rpt"><i data-i="ext"></i>小組報告</button><button id="cfg"><i data-i="gear"></i>研究檔案</button></div>
     <div class="cvw" id="cvw">
       <div class="tools" role="toolbar" aria-label="畫布工具">
         <button id="undo" title="返回上一個操作 (Ctrl+Z)" aria-label="返回上一個操作"><i data-i="undo"></i></button><button id="redo" title="取消返回 (Ctrl+Shift+Z)" aria-label="取消返回"><i data-i="redo"></i></button><span class="vr"></span>
@@ -306,9 +307,11 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
 // 不存在或連不上，也只是靜靜留在 demo 模式——下面主程式完全不受影響，不會白屏。
 window.RF_MODE = "demo";
 // 手寫與圖示的自動偵測（src/ink.mjs）跟 Firebase 無關，展示模式也能用；載入失敗就退回手動輸入。
-window.RF_VER = "2026.10.10-12";
+window.RF_VER = "2026.10.10-14";
 // 查證模式的建議、主張轉研究問題、中文轉英文關鍵字都是純函式（src/agent-local.mjs），展示模式也用得到。
 try { window.RFTEAM = await import("./src/teamwork.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 teamwork.mjs：", err?.message || err); }
+// 本機模型：使用者電腦上的 Ollama（Qwen）。有偵測到時，關鍵字規劃、翻譯、文獻判讀、手寫辨識都交給它；沒有就用規則式。
+try { window.RFLLM = await import("./src/llm.mjs"); window.RFAI = await import("./src/agent-llm.mjs"); window.RFLLM.detect().then(() => window.dispatchEvent(new Event("rf:llm"))); } catch (err) { console.info("[ResearchFlow] 無法載入本機模型模組：", err?.message || err); }
 try { window.RFAGENT = await import("./src/agent-local.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 agent-local.mjs：", err?.message || err); }
 try {
   window.RFINK = await import("./src/ink.mjs");
@@ -370,7 +373,21 @@ function addTopicKw(text){if(!window.RFAGENT||!window.RFINK)return;
  if(core.length<2)core=[...core,...[...mine,...subj].filter(k=>!core.includes(k))].slice(0,2);
  if(!core.length)return;
  const old=(S.kwCore||[]).filter(k=>!core.includes(k)&&hasZh(k)&&!RFAGENT.keywordPairs(k).length&&!RFAGENT.extractZhTerms(k,RFINK.lexRank).length); // 舊版留下的零碎詞（能力、判斷…）
- S.kwCore=core;S.kw=[...core,...S.kw.filter(k=>!core.includes(k)&&!old.includes(k))];terms.forEach(t=>{if(!S.kwEn[t])translateKw(t)})}
+ S.kwCore=core;S.kw=[...core,...S.kw.filter(k=>!core.includes(k)&&!old.includes(k))];S.kwBy="";terms.forEach(t=>{if(!S.kwEn[t])translateKw(t)});planKw(text)}
+// 有本機模型時：規則式先給出一版（立刻看得到），模型再讀題目＋主張＋畫布內容重新規劃一次，約 20 秒後換上。
+// 內建對照表認得的詞用對照表的英文（人工校對過），模型給的說法併進同義詞；規劃期間學生自己加的關鍵字保留。
+let planBusy=false;
+function planKw(text){if(!AI()||planBusy||!String(text||"").trim())return;planBusy=true;const proj=p,before=S.kw.slice(),re=()=>{if(p===proj&&pane==="agent"&&S.step===4)renderPane()};
+ const notes=(S.rd||[]).map(getO).filter(o=>o&&o.type!=="link").map(o=>o.type==="text"?o.text:o.aiRead).filter(Boolean);
+ RFAI.planSearch({title:p.name,claim:text,notes}).then(r=>{planBusy=false;if(p!==proj||S.step!==4||S.rounds){re();return}
+  S.kwEn=S.kwEn||{};S.kwSyn={};
+  const ks=r.keywords.map(k=>{const name=k.zh||k.en;let en=k.en,syn=k.synonyms;const known=k.zh&&window.RFAGENT&&RFAGENT.keywordPairs(k.zh).find(x=>x.zh===k.zh);
+   if(known&&known.en.toLowerCase()!==en){syn=[en,...syn];en=known.en}
+   if(hasZh(name))S.kwEn[name]=en;S.kwSyn[en.toLowerCase()]=syn.slice(0,4);return{name:hasZh(name)?name:en,core:k.role==="core"}});
+  const mine=S.kw.filter(k=>!before.includes(k)&&!ks.some(x=>x.name===k));
+  S.kw=[...ks.map(k=>k.name),...mine];S.kwCore=[...ks.filter(k=>k.core).map(k=>k.name),...mine.filter(k=>(S.kwCore||[]).includes(k))];S.kwWeak=[];S.kwBy=AIN();S.focus=r.focus;S.kwV=2;
+  aiLog(`${AIN()} 規劃搜尋關鍵字：${ks.map(k=>k.name+(S.kwEn[k.name]?"→"+S.kwEn[k.name]:"")).join("、")}。`);saveS();re()},
+ err=>{planBusy=false;console.warn("[ResearchFlow] 模型規劃關鍵字失敗，沿用規則式的結果：",err?.message||err);re()});re()}
 // 舊版產生的關鍵字（沒有 kwV 記號）在回到確認頁時重新整理一次
 function upgradeKw(){if(!LIVE()||!window.RFAGENT||!window.RFINK||(S.kwV||0)>=2||!S.kw.length)return;
  const text=S.claim||(S.rd||[]).map(getO).filter(o=>o&&o.type!=="link"&&o.tag!=="question").map(o=>o.type==="text"?o.text:o.aiRead).filter(Boolean).join("。");
@@ -384,9 +401,11 @@ function kwSets(){const core=(S.kwCore||[]).filter(k=>S.kw.includes(k)),isCore=k
  const ordered=[...S.kw.filter(isCore).sort((a,b)=>rank(a)-rank(b)),...S.kw.filter(k=>!isCore(k))];
  const claim=S.claim||((S.rd||[]).map(getO).find(o=>o&&o.tag==="claim")||{}).text||S.q0||"";
  return{keywords:ordered.map(en).filter(Boolean),keywordsZh:ordered.filter(hasZh),coreCount:Math.max(1,S.kw.filter(isCore).map(en).filter(Boolean).length),coreZh:Math.max(1,S.kw.filter(k=>isCore(k)&&hasZh(k)).length),
-  claimNeg:!!(window.RFAGENT&&RFAGENT.isNegativeClaim(claim))}}
+  claimNeg:!!(window.RFAGENT&&RFAGENT.isNegativeClaim(claim)),claim:[p.name?"報告題目「"+p.name+"」":"",claim||S.rq].filter(Boolean).join("；主張："),synonyms:S.kwSyn||{}}}
 function translateKw(k,manual){if(!window.RFAGENT||!hasZh(k)||kwBusy.has(k))return;kwBusy.add(k);
- RFAGENT.translateTerm(k).then(r=>{kwBusy.delete(k);if(!S.kw.includes(k))return;(S.kwEn=S.kwEn||{})[k]=r.en;
+ const known=RFAGENT.keywordPairs(k).some(x=>x.zh===k),ctx=[p.name,S.claim||S.rq].filter(Boolean).join("；");
+ const job=AI()&&!known?RFAI.translate(k,ctx).then(r=>({en:r.en,via:AIN(),syn:r.synonyms}),()=>RFAGENT.translateTerm(k)):RFAGENT.translateTerm(k);
+ job.then(r=>{kwBusy.delete(k);if(!S.kw.includes(k))return;(S.kwEn=S.kwEn||{})[k]=r.en;if(r.syn&&r.en)(S.kwSyn=S.kwSyn||{})[r.en.toLowerCase()]=r.syn;
   // 機器翻譯的詞比較不可靠：記下來，組查詢時排在主題詞的最後（找不到文獻時最先被放寬）
   S.kwWeak=(S.kwWeak||[]).filter(x=>x!==k).concat(r.via==="機器翻譯"?[k]:[]);
   // 機器翻譯常常翻錯；當成「一定要出現」的主題詞會把結果帶偏。已經有 2 個可靠的主題詞時，系統自己抽出的這種詞降為範圍詞（學生自己加的不動）
@@ -727,7 +746,19 @@ function syncObjsLive(bump=true){if(!LIVE()||!p||!p.fid||!canEdit())return;
  if(bump)RFDB.bumpCanvasVersion(p.fid).catch(err=>console.error("[ResearchFlow] 更新 Canvas 版本失敗：",err));
  upserts.forEach(o=>RFDB.setCanvasObject(p.fid,o.id,toRemoteObj(o),ME).catch(err=>console.error("[ResearchFlow] 同步畫布物件失敗：",err)));
  deletes.forEach(id=>RFDB.deleteCanvasObject(p.fid,id).catch(err=>console.error("[ResearchFlow] 刪除畫布物件失敗：",err)))}
-function openWsUI(){$("#pt").textContent=p.name;$("#pst").textContent=p.stage;$("#rolelab").textContent=isT()?"老師：唯讀檢視．AI 權限 Level "+p.LV:myRole()==="Viewer"?"Viewer：唯讀":"AI 權限 Level "+p.LV;
+/* 本機模型（Ollama 的 Qwen）。AI()：這個研究現在能不能用模型——有偵測到模型，而且老師沒有把 AI 權限關掉（Level 0）。 */
+const AI=()=>!!(window.RFLLM&&window.RFAI&&RFLLM.status().ok&&p&&p.LV>=1);
+const AIN=()=>window.RFLLM?RFLLM.modelLabel():"";
+function aiChip(){const e=$("#aimodel");if(!e||!p)return;const st=window.RFLLM?RFLLM.status():{ok:false,reason:"模組未載入"};
+ e.textContent=p.LV<1?"AI：已關閉":st.ok?"AI："+AIN():"AI：規則式";e.className="tag"+(AI()?" ai":"");
+ e.title=p.LV<1?"老師把 AI 權限設為 Level 0":st.ok?"關鍵字規劃、翻譯、文獻判讀與手寫辨識由這台電腦上的 "+st.model+"（Ollama）執行，資料不會離開這台電腦。":"沒有偵測到本機模型："+st.reason+"。目前使用內建的規則式程式；安裝 Ollama 與 Qwen 後會自動切換。"}
+// 點標籤：重新偵測一次，並說明目前的狀態與怎麼啟用本機模型
+$("#aimodel").style.cursor="pointer";$("#aimodel").onclick=async()=>{if(!window.RFLLM)return;const st=await RFLLM.detect(true);aiChip();if(pane==="agent")renderPane();
+ alert(p.LV<1?"老師把這份研究的 AI 權限設為 Level 0，Agent 已關閉。":st.ok?"目前使用這台電腦上的 "+st.model+"（Ollama）。\n\n關鍵字規劃、翻譯、文獻判讀與手寫辨識都由它執行，資料不會離開這台電腦。":"沒有偵測到本機模型，目前使用內建的規則式程式。\n\n原因："+st.reason+"。\n\n要使用 Qwen：\n1. 安裝 Ollama（ollama.com）並下載模型 qwen3.5:9b\n2. 用專案裡的 tools/start-ollama.command（Windows 用 .bat）啟動\n3. 瀏覽器詢問是否允許連線到本機裝置時，選「允許」\n4. 再點一次這個標籤重新偵測")};
+window.addEventListener("rf:llm",()=>{aiChip();if(p&&pane==="agent"&&!$("#v-ws").classList.contains("hide"))renderPane()});
+// Agent（模型）做的事寫進研究歷程
+const aiLog=x=>{if(LIVE()&&p.fid)RFDB.addTrace(p.fid,{w:"Agent",x,k:"ai"},ME).catch(()=>{});else p.trace.push({t:nowT(),w:"Agent",x,k:"ai"})};
+function openWsUI(){aiChip();if(window.RFLLM)RFLLM.detect().then(aiChip);$("#pt").textContent=p.name;$("#pst").textContent=p.stage;$("#rolelab").textContent=isT()?"老師：唯讀檢視．AI 權限 Level "+p.LV:myRole()==="Viewer"?"Viewer：唯讀":"AI 權限 Level "+p.LV;
  $("#pres").innerHTML=p.members.filter(m=>!U[m.u].pending).map(m=>av(m.u,26)).join("");
  $("#rpt").innerHTML=`${I("ext")}${p.reportUrl?(p.reportType||"報告"):"小組報告"}`;
  $("#rpt").title=p.reportUrl?"開啟「"+(p.reportType||"報告")+"」："+p.reportUrl:"尚未設定報告連結，點一下即可加入";
@@ -895,7 +926,7 @@ function body(){const s=S.step,sc=S.scope;
    +(cm?`<h3>要論證的主張</h3><p class="sm mute" style="margin:0 0 6px">主張論證模式一次專注論證一個主張。從畫布上的論點選一個，或自己輸入。</p>
    <div class="chips">${cands.map((t,i)=>`<button data-a="claim" data-k="${i}" class="${S.claim===t?"on":""}">${esc(t)}</button>`).join("")}</div>
    <div style="display:flex;gap:6px"><input id="cli" placeholder="或自行輸入要查證的主張" value="${esc(S.claim&&!cands.includes(S.claim)?S.claim:"")}"><button data-a="claimin">使用</button></div>`:"");
-  return modeBox+`<h3>Research Question</h3><input id="rqi" value="${esc(S.rq)}"><h3>搜尋關鍵字</h3>${LIVE()?`<p class="sm mute" style="margin:0 0 8px">粗體是主題詞，搜尋結果一定會提到它們；點關鍵字可切換，點英文可修改。</p>`:""}<div class="chips">${S.kw.map((k,i)=>`<span class="kwc ${kwIsCore(k)?"core":""}"><span class="kwn" data-a="kwcore" data-k="${i}" title="${kwIsCore(k)?"主題詞：結果必須提到。點一下改成範圍詞":"範圍詞：用來縮小範圍。點一下改成主題詞"}">${esc(k)}</span>${hasZh(k)?`<span class="mute">→</span>${kwBusy.has(k)?`<span class="mute">翻譯中…</span>`:`<span class="kwt" data-a="kwen" data-k="${i}" title="點一下修改英文">${esc((S.kwEn||{})[k]||"未翻譯")}</span>`}`:""}<button data-a="kwx" data-k="${i}" aria-label="移除關鍵字 ${esc(k)}" title="移除">×</button></span>`).join("")}</div>
+  return modeBox+`<h3>Research Question</h3><input id="rqi" value="${esc(S.rq)}"><h3>搜尋關鍵字</h3>${LIVE()?`<p class="sm mute" style="margin:0 0 8px">粗體是主題詞，搜尋結果一定會提到它們；點關鍵字可切換，點英文可修改。</p>`:""}${planBusy?`<p class="sm aiby">${I("spark")}${esc(AIN())} 正在依題目與主張規劃關鍵字（約 20 秒），完成後會自動換上…</p>`:S.kwBy?`<p class="sm aiby">${I("spark")}由 ${esc(S.kwBy)} 規劃${S.focus?"：查證重點是「"+esc(S.focus)+"」":""}</p>`:""}<div class="chips">${S.kw.map((k,i)=>`<span class="kwc ${kwIsCore(k)?"core":""}"><span class="kwn" data-a="kwcore" data-k="${i}" title="${kwIsCore(k)?"主題詞：結果必須提到。點一下改成範圍詞":"範圍詞：用來縮小範圍。點一下改成主題詞"}">${esc(k)}</span>${hasZh(k)?`<span class="mute">→</span>${kwBusy.has(k)?`<span class="mute">翻譯中…</span>`:`<span class="kwt" data-a="kwen" data-k="${i}" title="點一下修改英文">${esc((S.kwEn||{})[k]||"未翻譯")}</span>`}`:""}<button data-a="kwx" data-k="${i}" aria-label="移除關鍵字 ${esc(k)}" title="移除">×</button></span>`).join("")}</div>
   <div style="display:flex;gap:6px"><input id="kwi" placeholder="新增關鍵字"><button data-a="kwa">${I("plus")}</button></div>
   <h3>搜尋策略</h3>${rows.map(r=>`<div class="hl sm"><span>${esc(r[0])}</span><span>${esc(r[0]==="資料來源"?String(r[1]).replace(/（.*）$/,""):r[1])}</span></div>`).join("")}<p class="sm mute">${cm?"Agent 只會搜尋支持這個主張的證據，依序是：直接證據 → 統整性研究（系統性回顧、後設分析）→ 成立條件與機制。不會主動提供反面例證。":"Agent 會以此建立 Supporting Search 與 Counter / Limiting Search，兩邊的證據都會找。"}</p><div class="acts"><button class="pri" data-a="go">${I("search")}以「${MODE_N[m]}」開始搜尋</button><button data-a="back3">修改範圍</button></div>`}
  if(s===5){const c=S.ev.filter(e=>e.k==="c").length,sp=S.ev.filter(e=>e.k==="s").length,uv=S.ev.filter(e=>!e.v).length,balanced=enoughOf(p);
@@ -1108,7 +1139,7 @@ function evHTML(){if(!S.ev.length)return `<h3>Evidence Map</h3><p class="sm mute
  // 「加入畫布」時可以選這筆證據要支撐哪個主張：預設選主張論證模式正在論證的那個，或證據上記錄的相關論點，否則第一個
  const claimOpts=contentObjs().filter(o=>o.tag==="claim"),guessClaim=e=>(claimOpts.find(o=>objLabel(o)===(S.claim||"").slice(0,24))||claimOpts.find(o=>e.c&&(o.text||o.aiRead)===e.c)||claimOpts[0]||{}).id;
  const src=e=>/^https:\/\//.test(e.url||"")?`<p><a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">開啟原始來源</a>${e.au?"　"+esc(e.au):""}${e.vn?"．"+esc(e.vn):""}</p>`:"";
- const item=(e,i)=>`<details class="ev ${e.k==="c"?"cn":""} ${e.v?"":"un"}"><summary><b>${esc(e.t)}</b>（${esc(e.y)}）<span class="tag">${LIVE()?esc(e.src||"OpenAlex"):"示範"}</span>${e.lang==="zh"?' <span class="tag">中文文獻</span>':""}${e.rel?` <span class="tag">相關度${esc(e.rel)}</span>`:""}</summary>${src(e)}<p>研究對象：${esc(e.p)}　方法：${esc(e.m)}${e.lv?"　證據力："+esc(e.lv):""}</p><p>${LIVE()?"摘要節錄":"主要發現"}：${esc(e.f)}</p><p>研究限制：${esc(e.l)}</p><p>${e.k==="c"?"相關":"支持"} Claim：${esc(e.c||"—")}</p><p>搜尋關鍵字：${esc(e.q)}</p><p>範圍比對：${esc(e.sc)}　${esc(e.d)}證據${e.u?"　探索性搜尋結果":""}</p><p><i class="dot ${e.v?"g":"y"}"></i>${e.v?"來源已驗證":"來源待驗證，暫不列為研究證據"}</p>${e.auto?`<p><i class="dot y"></i>支持／反向為依摘要用語的初步分類，請閱讀原文後確認或改列</p>`:""}<div class="acts" style="margin-top:6px">${e.auto&&canEdit()?`<button data-a="confirmk" data-k="${i}" style="font-size:12px;padding:2px 9px">確認分類</button>`:""}${LIVE()&&canEdit()?(MODE()==="claim"&&e.k==="s"?`<button data-a="drop" data-k="${i}" style="font-size:12px;padding:2px 9px">不支持這個主張，移除</button>`:`<button data-a="flip" data-k="${i}" style="font-size:12px;padding:2px 9px">改列為${e.k==="c"?"支持":"反向／限制"}</button>`):""}${e.v?"":`<button data-a="verify" data-k="${i}" style="font-size:12px;padding:2px 9px">驗證來源</button>`}${canEdit()&&claimOpts.length?`<select data-ec="${i}" aria-label="這筆證據要支撐哪個主張" style="font-size:12px;padding:2px 6px;max-width:190px"><option value="">不連到主張</option>${claimOpts.map(o=>`<option value="${esc(o.id)}" ${o.id===guessClaim(e)?"selected":""}>支撐：${esc(objLabel(o))}</option>`).join("")}</select>`:""}<button data-a="tocv" data-k="${i}" style="font-size:12px;padding:2px 9px" ${canEdit()?"":"disabled"}>加入畫布</button></div></details>`;
+ const item=(e,i)=>`<details class="ev ${e.k==="c"?"cn":""} ${e.v?"":"un"}"><summary><b>${esc(e.t)}</b>（${esc(e.y)}）<span class="tag">${LIVE()?esc(e.src||"OpenAlex"):"示範"}</span>${e.lang==="zh"?' <span class="tag">中文文獻</span>':""}${e.rel?` <span class="tag">相關度${esc(e.rel)}</span>`:""}${e.ai?` <span class="tag ai">${esc(e.ai.replace(/（.*$/,""))} 判讀</span>`:""}${e.mix?' <span class="tag">有條件成立</span>':""}${e.unc?' <span class="tag">立場待確認</span>':""}</summary>${src(e)}<p>研究對象：${esc(e.p)}　方法：${esc(e.m)}${e.lv?"　證據力："+esc(e.lv):""}</p><p>${e.ai?"主要發現（"+esc(e.ai)+" 依摘要整理，請對照原文）":LIVE()?"摘要節錄":"主要發現"}：${esc(e.f)}</p>${e.ai&&e.fo?`<p class="sm mute">摘要原文節錄：${esc(e.fo)}</p>`:""}<p>研究限制：${esc(e.l)}</p><p>${e.k==="c"?"相關":"支持"} Claim：${esc(e.c||"—")}</p><p>搜尋關鍵字：${esc(e.q)}</p><p>範圍比對：${esc(e.sc)}　${esc(e.d)}證據${e.u?"　探索性搜尋結果":""}</p><p><i class="dot ${e.v?"g":"y"}"></i>${e.v?"來源已驗證":"來源待驗證，暫不列為研究證據"}</p>${e.auto?`<p><i class="dot y"></i>支持／反向為依摘要用語的初步分類，請閱讀原文後確認或改列</p>`:""}<div class="acts" style="margin-top:6px">${e.auto&&canEdit()?`<button data-a="confirmk" data-k="${i}" style="font-size:12px;padding:2px 9px">確認分類</button>`:""}${LIVE()&&canEdit()?(MODE()==="claim"&&e.k==="s"?`<button data-a="drop" data-k="${i}" style="font-size:12px;padding:2px 9px">不支持這個主張，移除</button>`:`<button data-a="flip" data-k="${i}" style="font-size:12px;padding:2px 9px">改列為${e.k==="c"?"支持":"反向／限制"}</button>`):""}${e.v?"":`<button data-a="verify" data-k="${i}" style="font-size:12px;padding:2px 9px">驗證來源</button>`}${canEdit()&&claimOpts.length?`<select data-ec="${i}" aria-label="這筆證據要支撐哪個主張" style="font-size:12px;padding:2px 6px;max-width:190px"><option value="">不連到主張</option>${claimOpts.map(o=>`<option value="${esc(o.id)}" ${o.id===guessClaim(e)?"selected":""}>支撐：${esc(objLabel(o))}</option>`).join("")}</select>`:""}<button data-a="tocv" data-k="${i}" style="font-size:12px;padding:2px 9px" ${canEdit()?"":"disabled"}>加入畫布</button></div></details>`;
  const li=k=>S.ev.map((e,i)=>e.k===k?item(e,i):"").join("")||`<p class="sm mute">尚無資料</p>`;
  // 主張論證模式：只列支持主張的證據，依證據力分層；反面例證只有小組要求過才出現在最下面
  if(MODE()==="claim"){const sup=S.ev.map((e,i)=>[e,i]).filter(x=>x[0].k==="s"),grp=f=>sup.filter(x=>f(lvOf(x[0]))).map(x=>item(x[0],x[1])).join("")||`<p class="sm mute">尚無資料</p>`;
@@ -1211,10 +1242,12 @@ async function actLive(a,w){
   label=`第 ${n+1} 輪：搜尋 OpenAlex 學術資料庫中…`;
   const known=()=>[...S.ev,...(S.held||[])].map(e=>e.id).concat(S.gone||[]);
   if(MODE()==="claim")label=`第 ${n+1} 輪：搜尋${ROUND_N[n]||"補充資料"}中…`;
+  if(AI())label+=`（找到後 ${AIN()} 會逐篇閱讀摘要，約需 1 分鐘）`;
   job=async()=>{const r=await RFDB.searchEvidence(p.fid,{...kwSets(),round:n,excludeIds:known(),mode:MODE()});
    S.qs.push(r.queries);S.rounds++;S.ev.push(...r.evidence);S.held=(S.held||[]).concat(r.held||[]);
    const ns=r.evidence.filter(e=>e.k==="s").length,nc=r.evidence.length-ns,c=S.ev.filter(e=>e.k==="c").length,uv=S.ev.filter(e=>!e.v).length;
-   const off=((r.relaxed||[]).length?`同時提到所有主題詞的文獻太少，已放寬「${r.relaxed.join("、")}」這個條件（放寬後找到的標為相關度中）。`:"")+(r.dropped?`另有 ${r.dropped} 篇不夠切題，已排除。`:"")+(r.fallback?"OpenAlex 今天的查詢額度已用完，這一輪改用 Crossref 資料庫（沒有中文文獻）。":"");
+   const off=((r.relaxed||[]).length?`同時提到所有主題詞的文獻太少，已放寬「${r.relaxed.join("、")}」這個條件（放寬後找到的標為相關度中）。`:"")+(r.dropped?`另有 ${r.dropped} 篇不夠切題，已排除。`:"")+(r.fallback?"OpenAlex 今天的查詢額度已用完，這一輪改用 Crossref 資料庫（沒有中文文獻）。":"")
+    +(r.ai&&r.ai.model?`${r.ai.model} 讀過 ${r.ai.judged} 篇摘要${r.ai.removed?"，排除 "+r.ai.removed+" 篇不切題的":""}，並依研究發現判斷立場；「主要發現」是模型寫的，請對照原文。`:r.ai&&r.ai.error&&window.RFLLM&&RFLLM.status().ok?"模型判讀失敗，這一輪改用規則式分類。":"");
    if(MODE()==="claim"){S.msg=`本輪找到 ${ns} 篇支持主張的文獻（請到「證據」頁確認）。`+off+(enoughOf(p)?"論證的證據已達門檻。":"證據還不夠：支持主張的證據至少要 3 筆，而且其中要有回顧或實驗研究。")+(uv?`其中 ${uv} 篇沒有 DOI，標記為來源待驗證。`:"");return}
    S.msg=(r.scanned?`本輪找到 ${r.scanned} 篇切題的新文獻，初步分類為支持 ${ns} 篇、反向／限制 ${nc} 篇（請到「證據」頁確認分類）。`:"本輪沒有找到同時提到所有主題詞的新文獻。可以按「修改搜尋方向」減少主題詞，或換一個說法。")+off+(c<3?"反向證據仍不足（Evidence Imbalance）。":"反向證據已達 3 篇。")+(uv?`其中 ${uv} 篇沒有 DOI，標記為來源待驗證。`:"")}}
  if(a==="counter"){
@@ -1255,6 +1288,22 @@ const hwText=o=>o.type==="text"?o.text:o.type==="stroke"&&!o.hwSub&&!o.shape?o.a
 function hwNear(a,b){const A=RFINK.boxOf(a.flatMap(o=>o.pts)),B=RFINK.boxOf(b.flatMap(o=>o.pts)),H=Math.max(Math.min(A.w,A.h),Math.min(B.w,B.h),30);
  const gx=Math.max(B.x-(A.x+A.w),A.x-(B.x+B.w),0),gy=Math.max(B.y-(A.y+A.h),A.y-(B.y+B.h),0);return gx<1.3*H&&gy<0.9*H}
 async function nativeRec(b){const d=HW.startDrawing({recognitionType:"text",inputType:"pen",alternatives:1});try{for(const o of b){const st=new HandwritingStroke();for(const q of o.pts)st.addPoint({x:q[0],y:q[1],t:Math.round(q[2]||0)});d.addStroke(st)}const r=await d.getPrediction();return r&&r[0]?r[0].text:""}finally{d.clear()}}
+// 把緊鄰的、還沒確認的手寫筆畫併成同一段——不管隔了多久才接著寫（原本只會跟 20 秒內的上一組合併，寫得慢就會變成一個字一組）
+function hwGrow(b){const ids=new Set(b.map(o=>o.id)),g=b.slice(),pool=p.objs.filter(o=>o.type==="stroke"&&!o.conf&&!o.shape&&!o.sg&&!ids.has(o.id)&&o.pts&&o.pts.length);
+ for(let added=true;added&&g.length<300;){added=false;for(let i=pool.length-1;i>=0;i--)if(hwNear(g,[pool[i]])){g.push(pool[i]);pool.splice(i,1);added=true}}
+ return g.sort((x,y)=>(x.ts||0)-(y.ts||0))}
+// 一組筆畫畫成白底黑字的 PNG（base64），給看得懂圖片的模型讀
+async function inkPNG(b){const xs=[],ys=[];b.forEach(o=>o.pts.forEach(q=>{xs.push(q[0]);ys.push(q[1])}));
+ const x0=Math.min(...xs),y0=Math.min(...ys),w=Math.max(...xs)-x0||1,h=Math.max(...ys)-y0||1,k=Math.min(1100/w,420/h,4),pd=28;
+ const c=document.createElement("canvas");c.width=Math.ceil(w*k+pd*2);c.height=Math.ceil(h*k+pd*2);const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.strokeStyle="#000";g.lineWidth=Math.max(3,Math.min(6,2.2*k));g.lineCap=g.lineJoin="round";
+ b.forEach(o=>{g.beginPath();o.pts.forEach((q,i)=>{const X=(q[0]-x0)*k+pd,Y=(q[1]-y0)*k+pd;i?g.lineTo(X,Y):g.moveTo(X,Y)});g.stroke()});
+ return c.toDataURL("image/png").split(",")[1]}
+const AIV=()=>AI()&&RFLLM.status().vision;
+// 筆跡辨識先給出一版（快），模型再看整段圖片校正成通順的詞句（慢一點）；這段時間如果又接著寫或已經確認，就不覆蓋
+async function hwRefine(ids,t){if(!AIV())return;const proj=p,b=ids.map(getO).filter(Boolean);if(!b.length)return;
+ try{const txt=await RFAI.readInk(await inkPNG(b),t);const lead=getO(ids[0]);if(p!==proj||!txt||!lead||lead.conf||lead.aiRead!==t||txt===t)return;
+  lead.alts=[t,...(lead.alts||[])].filter((x,i,a)=>x&&a.indexOf(x)===i).slice(0,4);lead.aiRead=txt;lead.hwBy=AIN();draw();insp();syncObjsLive(false);if(pane==="agent"&&S.step===1)renderPane()}
+ catch(e){console.warn("[ResearchFlow] 模型讀取手寫失敗，保留筆跡辨識的結果：",e?.message||e)}}
 async function imgRec(b){const xs=[],ys=[];b.forEach(o=>o.pts.forEach(q=>{xs.push(q[0]);ys.push(q[1])}));
  const x0=Math.min(...xs),y0=Math.min(...ys),w=Math.max(...xs)-x0||1,h=Math.max(...ys)-y0||1,k=Math.min(900/w,300/h,4),pd=24;
  const c=document.createElement("canvas");c.width=Math.ceil(w*k+pd*2);c.height=Math.ceil(h*k+pd*2);const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.strokeStyle="#000";g.lineWidth=4;g.lineCap=g.lineJoin="round";
@@ -1272,18 +1321,21 @@ async function runHW(){const proj=p,INK=window.RFINK;let b=hwQ.splice(0).map(o=>
   desc=INK.describeShape(shape,others);
   // 沒有圈到或連到任何內容的線條，如果是緊接在上一組旁邊畫的，其實是字的筆畫（「十」的一橫一豎、句子裡的「一」），不是圖示
   if(joinable&&desc.startsWith("圖示：")&&(lastHW.shape||Date.now()-lastHW.at<6000))shape=null}
- if(shape){b.forEach((o,i)=>{if(i)o.hwSub=1;else{o.aiRead=desc;o.shape=shape.kind}});
+ // 緊貼著還沒確認的手寫字畫的線條（沒有圈到或連到任何內容），其實是字的一部分——不管隔了多久
+ if(shape&&desc.startsWith("圖示：")&&hwGrow(b).some(o=>!b.includes(o)&&!o.shape))shape=null;
+ if(shape){b.forEach((o,i)=>{o.sg=1;if(i)o.hwSub=1;else{o.aiRead=desc;o.shape=shape.kind}});
   lastHW=desc.startsWith("圖示：")?{proj,ids:b.map(o=>o.id),at:Date.now(),shape:true}:null;draw();insp();syncObjsLive(false);return}
- if(joinable){prev.forEach(o=>{delete o.shape});b=[...prev,...b]}
+ if(joinable){prev.forEach(o=>{delete o.shape;delete o.sg});b=[...prev,...b]}
+ b=hwGrow(b);b.forEach(o=>{delete o.sg});
  const ids=b.map(o=>o.id);b.forEach(o=>o.hwBusy=1);draw();let t="";
  let alts=[];
- try{if(HW)t=await nativeRec(b);if(!t&&INK){const r=await INK.recognizeInkDetailed(b.map(o=>o.pts));t=r.text;alts=r.alts}if(!t&&SAMP)t=await imgRec(b);hwErr=""}catch(e){console.warn("[ResearchFlow] 手寫辨識失敗：",e?.message||e);hwErr=/Failed to fetch|Load failed|NetworkError/i.test(e?.message||"")?"連不上辨識服務":String(e?.message||e).slice(0,30)}
+ try{if(HW)t=await nativeRec(b);if(!t&&INK){const r=await INK.recognizeInkDetailed(b.map(o=>o.pts));t=r.text;alts=r.alts}if(!t&&SAMP)t=await imgRec(b);if(!t&&AIV())t=await RFAI.readInk(await inkPNG(b),"");hwErr=""}catch(e){console.warn("[ResearchFlow] 手寫辨識失敗：",e?.message||e);hwErr=/Failed to fetch|Load failed|NetworkError/i.test(e?.message||"")?"連不上辨識服務":String(e?.message||e).slice(0,30)}
  hwLabel();
  if(p!==proj)return;
  b=ids.map(getO).filter(Boolean);
  b.forEach((o,i)=>{delete o.hwBusy;delete o.alts;if(t){if(i){o.hwSub=1;o.aiRead=""}else{o.aiRead=t;delete o.hwSub;if(alts.length)o.alts=alts}}});
  lastHW=t&&b.length?{proj,ids:b.map(o=>o.id),at:Date.now()}:null;
- draw();insp();syncObjsLive(false)}
+ draw();insp();syncObjsLive(false);if(t&&b.length)hwRefine(b.map(o=>o.id),t)}
 function drawHW(){if(!p)return;ctx.font="12px 'Noto Sans TC',sans-serif";for(const o of p.objs){if(o.type!=="stroke")continue;if(o.hwBusy||(o.aiRead&&!o.hwSub&&!o.conf)){const b=bbox(o);ctx.fillStyle=o.hwBusy?cssv("--mute"):cssv("--ac");ctx.fillText(o.hwBusy?"辨識中…":"AI 讀取："+o.aiRead+"（待確認）",b.x,b.y+b.h+14)}}}
 cv.addEventListener("contextmenu",e=>e.preventDefault());cv.addEventListener("selectstart",e=>e.preventDefault());cv.addEventListener("touchstart",e=>e.preventDefault(),{passive:false});
 $$(".tabs button").forEach(b=>b.addEventListener("click",()=>{const e=$("#pane");e.classList.remove("fx");void e.offsetWidth;e.classList.add("fx")}));

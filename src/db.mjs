@@ -17,6 +17,8 @@ import {
 import { firebaseConfig } from './firebase-config.js';
 import { checkAgentCall } from './harness.mjs';
 import * as agent from './agent-local.mjs';
+import * as llm from './llm.mjs';
+import { refineEvidence } from './agent-llm.mjs';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -66,19 +68,34 @@ export async function proposeQuestion(projectId, { items, answers, ownQuestion }
 // keywords 是英文關鍵字（搜尋國際文獻），keywordsZh 是中文關鍵字（直接搜尋中文文獻）；兩者至少要有一個。
 // coreCount：keywords 的前幾個是主題詞（每篇結果的標題或摘要都必須提到），其餘是用來縮小範圍的範圍詞。
 // claimNeg：主張本身是負面的（「…會變差」）——這時發現負面結果的研究算支持。
-export async function searchEvidence(projectId, { keywords, keywordsZh, coreCount, coreZh, claimNeg, round, excludeIds, mode }) {
+export async function searchEvidence(projectId, { keywords, keywordsZh, coreCount, coreZh, claimNeg, round, excludeIds, mode, claim, synonyms }) {
   const uid = await guard(projectId, 'searchEvidence');
   const zhQueries = agent.buildQueriesZh(keywordsZh, round, mode, coreZh);
-  const out = await agent.searchRelaxed({ keywords, coreCount, round, mode, excludeIds, zhQueries, keywordsZh, coreZh, claimNeg });
+  // 這台電腦有本機模型（Ollama 的 Qwen）時：多抓幾篇候選，讓模型逐篇讀摘要——排除不切題的、依研究發現判斷支持或反向。
+  // 沒有模型或模型出錯時，沿用規則式的結果（ai.error 會說明原因）。
+  const st = await llm.detect();
+  const out = await agent.searchRelaxed({ keywords, coreCount, round, mode, excludeIds, zhQueries, keywordsZh, coreZh, claimNeg, synonyms, limit: 10 });
+  out.ai = { model: '', judged: 0, removed: 0, error: st.ok ? '' : st.reason };
+  if (st.ok && out.evidence.length) {
+    try {
+      const r = await refineEvidence({ claim, evidence: out.evidence, model: llm.modelLabel(st.model) });
+      Object.assign(out, { evidence: r.evidence, scanned: r.evidence.length, ai: { model: llm.modelLabel(st.model), judged: r.judged, removed: r.removed, error: '' } });
+    } catch (err) {
+      out.ai.error = String(err?.message || err).slice(0, 120);
+      out.evidence = out.evidence.slice(0, 10); out.scanned = out.evidence.length;
+    }
+  }
+  out.evidence.forEach((e) => { delete e._ab; });
+  const by = out.ai.model ? `（${out.ai.model} 讀過 ${out.ai.judged} 篇摘要，排除 ${out.ai.removed} 篇不切題）` : '';
   const sup = out.evidence.filter((e) => e.k === 's').length;
   if (mode === 'claim' && round !== 'counter') {
     const held = out.evidence.filter((e) => e.k !== 's');
-    await agentLog(projectId, uid, `主張論證模式第 ${round + 1} 輪搜尋 OpenAlex：找到 ${sup} 篇支持主張的文獻（待小組確認）；另有 ${held.length} 篇看法可能不同，先保留不顯示。`);
+    await agentLog(projectId, uid, `主張論證模式第 ${round + 1} 輪搜尋 OpenAlex：找到 ${sup} 篇支持主張的文獻（待小組確認）；另有 ${held.length} 篇看法可能不同，先保留不顯示。${by}`);
     return { ...out, evidence: out.evidence.filter((e) => e.k === 's'), held };
   }
   await agentLog(projectId, uid, mode === 'claim'
-    ? `應學生要求搜尋反面例證（參考用）：找到 ${out.scanned} 篇，其中 ${out.scanned - sup} 篇初步分類為反向／限制。`
-    : `正反例證模式第 ${round + 1} 輪搜尋 OpenAlex：找到 ${out.scanned} 篇，初步分類為支持 ${sup} 篇、反向／限制 ${out.scanned - sup} 篇（待小組確認）。`);
+    ? `應學生要求搜尋反面例證（參考用）：找到 ${out.scanned} 篇，其中 ${out.scanned - sup} 篇初步分類為反向／限制。${by}`
+    : `正反例證模式第 ${round + 1} 輪搜尋 OpenAlex：找到 ${out.scanned} 篇，初步分類為支持 ${sup} 篇、反向／限制 ${out.scanned - sup} 篇（待小組確認）。${by}`);
   return { ...out, held: [] };
 }
 

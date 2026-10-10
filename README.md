@@ -68,6 +68,28 @@ npm start
 AI 權限（新專案預設 Level 2）：0 全部關閉；1 可判斷範圍與搜尋，研究問題由學生自己寫；2 另可產生研究問題草案；3 另可產生證據摘要。
 「請 Agent 完成整份報告」在任何 Level 都會被拒絕並留下紀錄。
 
+### AI 模型：本機的 Qwen（Ollama）
+
+系統會自動偵測使用者電腦上有沒有 [Ollama](https://ollama.com) 和 Qwen 模型。有的話，下面這幾步交給模型；沒有就用內建的規則式程式（畫布上方的標籤會顯示「AI：Qwen …（本機）」或「AI：規則式」）。不需要金鑰、不花錢，資料不離開電腦。
+
+| 步驟 | 有本機模型時 | 沒有時（備援） |
+|---|---|---|
+| 規劃搜尋關鍵字 | Qwen 讀題目＋主張＋畫布內容，決定主題詞、範圍詞、學術英文與同義詞 | 內建對照表＋詞庫斷詞 |
+| 翻譯關鍵字 | Qwen 依脈絡翻成論文會用的說法 | 對照表 → 維基百科 → 機器翻譯 |
+| 判讀文獻 | Qwen 逐篇讀摘要：排除不切題的、依研究發現判斷支持或反向、用一句中文寫出主要發現 | 比對字詞與正負向用語 |
+| 手寫辨識 | 筆跡辨識先給一版，Qwen 再看整段圖片校正成通順詞句 | 只有筆跡辨識 |
+
+文獻本身仍然來自真實的學術資料庫（OpenAlex／Crossref），模型只負責理解與判斷；模型寫的「主要發現」會標示出來，並附上摘要原文。
+
+**安裝（每台要用模型的電腦都要做一次）**
+
+1. 到 https://ollama.com 下載安裝 Ollama。
+2. 下載模型：`ollama pull qwen3.5:9b`（約 7.6 GB，建議 16 GB 記憶體；8 GB 的電腦改用 `qwen3.5:4b`）。
+3. 啟動：Mac 在 Finder 對 `tools/start-ollama.command` 按兩下；Windows 執行 `tools/start-ollama.bat`。這兩個檔案會設定 `OLLAMA_ORIGINS`，允許 ResearchFlow 網站連到本機的 Ollama。直接開 Ollama 程式的話，網站會被擋下來。
+4. 用 Chrome 或 Edge 開網站；第一次瀏覽器可能會詢問是否允許連線到本機裝置，請允許。
+
+程式在 `src/llm.mjs`（連線與偵測）和 `src/agent-llm.mjs`（四個任務的提示與結果整理）。
+
 ### 老師端
 
 登入時選「我是老師」會進入老師端儀表板（老師不建立研究，所以沒有建立區塊）：
@@ -92,6 +114,8 @@ researchflow.html          前端（單一檔案）
 dev-server.mjs             本機預覽用的靜態伺服器（npm start）
 src/
   db.mjs                    Firebase 資料層：登入、Firestore 讀寫、執行 Agent 前的權限檢查
+  llm.mjs                   連到本機的 Ollama：偵測 Qwen 模型、要求照 JSON 格式回答
+  agent-llm.mjs (+test)     用 Qwen 規劃關鍵字、翻譯、判讀文獻、讀手寫圖片
   teamwork.mjs (+test)      分工：畫布活動統計、任務類型、規則式提示（純邏輯）
   agent-local.mjs (+test)   規則式 Agent：判斷範圍、研究問題、OpenAlex 搜尋、證據初步分類
   ink.mjs (+test)           自動偵測手寫內容：圖示的幾何判斷、手寫文字辨識（切字、詞庫校正）
