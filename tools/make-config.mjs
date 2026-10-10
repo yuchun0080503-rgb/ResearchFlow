@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
-const raw = execFileSync('npx', ['firebase', 'apps:sdkconfig', 'WEB', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+const raw = execFileSync('npx', ['firebase', 'apps:sdkconfig', 'WEB', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], shell: process.platform === 'win32' });
 const config = JSON.parse(raw).result?.sdkConfig;
 if (!config?.projectId) {
   console.error('取不到設定值。請確認已執行 npx firebase login，且你的帳號已被加入 Firebase 專案。');
