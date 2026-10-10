@@ -437,6 +437,25 @@ export function buildQueries(keywords, round, mode = 'procon', coreCount = 2) {
   return { kind, queries: uniq(queries), core, scope };
 }
 
+// 下一輪（round 從 0 起算）改找什麼方向，給反思的說明用
+export function nextDirection(round, mode = 'procon') {
+  if (mode === 'claim') return ['直接證據', '統整性研究（系統性回顧、後設分析）', '成立條件與機制'][round] || '擴大範圍的補充證據';
+  return ['支持方向', '負面影響與限制', '統整性研究與限制'][round] || '擴大範圍的反向與限制證據';
+}
+
+/**
+ * 規則式反思（沒有本機模型時使用）：一輪搜尋後證據不夠，決定下一輪怎麼調整。
+ *   這一輪切題的文獻很少 → 主題詞太多、條件太嚴：少用一個主題詞（最少 2 個）。
+ *   其他情況 → 關鍵字不變，下一輪換方向用語（見 buildQueries 各輪的方向）。
+ * @param {{coreCount:number, found:number, round:number, mode?:string, gap?:string}} o round 是「下一輪」的編號（從 0 起算）
+ * @returns {{reason:string, coreCount:number}}
+ */
+export function reflectRule({ coreCount = 2, found = 0, round = 1, mode = 'procon', gap = '' }) {
+  const dir = nextDirection(round, mode);
+  if (found < 4 && coreCount > 2) return { reason: `${gap ? gap + '。' : ''}上一輪切題的文獻只有 ${found} 篇，條件可能太嚴：下一輪少用一個主題詞，並改找「${dir}」。`, coreCount: coreCount - 1 };
+  return { reason: `${gap ? gap + '。' : ''}下一輪改找「${dir}」。`, coreCount };
+}
+
 /**
  * 搜尋並在找不到時逐步放寬。先要求全部主題詞都出現；切題的文獻不到 minHits 篇時，
  * 把排在最後的主題詞降為範圍詞再查一次（最少保留 2 個主題詞，只有 1 個時就 1 個）。

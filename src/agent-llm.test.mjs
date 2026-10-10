@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { detect, modelLabel } from './llm.mjs';
-import { planSearch, translate, judgeWorks, refineEvidence, readInk } from './agent-llm.mjs';
+import { planSearch, translate, judgeWorks, refineEvidence, readInk, reflectSearch, scopeFocus, draftQuestion } from './agent-llm.mjs';
 
 // 假的 Ollama：/api/tags 回報有安裝的模型，/api/chat 回傳事先準備好的 JSON（並記下送出的內容）
 const fake = (models, reply) => {
@@ -74,4 +74,57 @@ test('readInk：把圖片交給模型並回傳文字；模型沒照格式回答�
   assert.equal(await readInk('BASE64', '學生目王', f), '學生自主判斷能力');
   assert.deepEqual(f.calls[0].messages[1].images, ['BASE64']);
   await assert.rejects(readInk('BASE64', '', fake(['qwen3.5:9b'], '不是 JSON')), /格式/);
+});
+
+test('reflectSearch：回傳原因與新的關鍵字；模型原封不動照抄上一輪時視為失敗', async () => {
+  const prev = [{ zh: '人工智慧', en: 'artificial intelligence', core: true, synonyms: [] }, { zh: '依賴', en: 'dependence', core: true, synonyms: [] }];
+  const f = fake(['qwen3.5:9b'], { reason: '論文多半說 over-reliance。', keywords: [
+    { zh: '人工智慧', en: 'artificial intelligence', role: 'core', synonyms: ['ai'] },
+    { zh: '過度依賴', en: 'over-reliance', role: 'core', synonyms: ['cognitive offloading'] } ] });
+  await detect(true, f);
+  const r = await reflectSearch({ claim: 'AI 讓學生依賴', gap: '反向證據 1 筆', keywords: prev, found: ['Paper A'], queries: ['q1'] }, f);
+  assert.equal(r.reason, '論文多半說 over-reliance。');
+  assert.deepEqual(r.keywords.map((k) => k.en), ['artificial intelligence', 'over-reliance']);
+  assert.match(f.calls[0].messages[1].content, /反向證據 1 筆/);
+  const same = fake(['qwen3.5:9b'], { reason: 'x', keywords: prev.map((k) => ({ zh: k.zh, en: k.en, role: 'core', synonyms: [] })) });
+  await assert.rejects(reflectSearch({ claim: 'c', gap: 'g', keywords: prev }, same), /沒有調整/);
+});
+
+test('scopeFocus：選項依題目產生、重複面向只留一題、三面向都清楚時不算太廣', async () => {
+  const f = fake(['qwen3.5:9b'], { tooBroad: true, reasons: ['沒有說明研究對象'], draftQuestion: '社群媒體如何影響睡眠？', questions: [
+    { key: 'who', question: '想研究哪一群人？', options: ['高中生', '大學新生', '夜班工作者'] },
+    { key: 'who', question: '重複', options: ['a', 'b'] },
+    { key: 'out', question: '只給一個選項', options: ['睡眠'] } ] });
+  await detect(true, f);
+  const r = await scopeFocus({ topic: '社群媒體與睡眠', items: [{ text: '滑手機到很晚' }] }, f);
+  assert.equal(r.tooBroad, true);
+  assert.deepEqual(r.clarifyingQuestions.map((q) => q.key), ['who']);
+  assert.deepEqual(r.clarifyingQuestions[0].options, ['高中生', '大學新生', '夜班工作者']);
+  const ok = fake(['qwen3.5:9b'], { tooBroad: false, reasons: ['都已交代'], draftQuestion: 'q', questions: [] });
+  assert.equal((await scopeFocus({ topic: 't', items: [] }, ok)).tooBroad, false);
+});
+
+test('draftQuestion：要有中文研究問題，否則視為失敗', async () => {
+  const f = fake(['qwen3.5:9b'], { question: '大學新生睡前使用社群媒體的時間，與睡眠品質有什麼關聯？' });
+  await detect(true, f);
+  assert.match(await draftQuestion({ topic: 't', answers: [{ question: '對象', answer: '大學新生' }] }, f), /大學新生/);
+  await assert.rejects(draftQuestion({ topic: 't' }, fake(['qwen3.5:9b'], { question: 'How?' })), /研究問題/);
+});
+
+test('chatJSON：文字步驟優先用 instruct 版並用 Schema 限制；只有思考型模型時用 json 格式＋提示；會整理包了 ```json 的回答', async () => {
+  const { parseJSON } = await import('./llm.mjs');
+  const f = fake(['qwen3.5:9b', 'qwen3:4b-instruct-2507-q4_K_M'], { en: 'sleep quality', synonyms: [] });
+  const st = await detect(true, f);
+  assert.equal(st.textModel, 'qwen3:4b-instruct-2507-q4_K_M');
+  await translate('睡眠品質', '', f);
+  assert.equal(f.calls[0].model, 'qwen3:4b-instruct-2507-q4_K_M');
+  assert.equal(f.calls[0].format.type, 'object');
+  assert.equal(f.calls[0].think, undefined);
+  const g = fake(['qwen3.5:9b'], '```json\n{"en":"sleep quality","synonyms":[]}\n```');
+  await detect(true, g);
+  assert.deepEqual(await translate('睡眠品質', '', g), { en: 'sleep quality', synonyms: [] });
+  assert.equal(g.calls[0].format, 'json');
+  assert.match(g.calls[0].messages[0].content, /JSON Schema/);
+  assert.deepEqual(parseJSON('好的：[{"i":0}]', { type: 'object', properties: { items: { type: 'array' } } }), { items: [{ i: 0 }] });
+  assert.throws(() => parseJSON('i=0, rel=3', {}), /格式/);
 });

@@ -287,3 +287,15 @@ test('relevance：用完整字詞比對，「AI」不會對到 said、training �
   assert.equal(relevance(off, core).ok, false);
   assert.equal(relevance(on, core).ok, true);
 });
+
+test('reflectRule：切題文獻太少且主題詞超過 2 個時少用一個；其他情況只換方向', async () => {
+  const { reflectRule, nextDirection } = await import('./agent-local.mjs');
+  const a = reflectRule({ coreCount: 3, found: 1, round: 1, gap: '反向證據 0 筆' });
+  assert.equal(a.coreCount, 2);
+  assert.match(a.reason, /條件可能太嚴/);
+  assert.match(a.reason, /負面影響與限制/);
+  assert.equal(reflectRule({ coreCount: 2, found: 1, round: 2 }).coreCount, 2);
+  assert.equal(reflectRule({ coreCount: 3, found: 8, round: 2 }).coreCount, 3);
+  assert.equal(nextDirection(1, 'claim'), '統整性研究（系統性回顧、後設分析）');
+  assert.match(nextDirection(5), /擴大範圍/);
+});

@@ -230,6 +230,7 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
  button:active{background:var(--soft)}
  .tools button,.zoom button{min-width:38px;min-height:38px}
 }
+.refl{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line,#ddd);font-size:12.5px;line-height:1.55}.refl b{display:block;margin-bottom:2px}
 </style>
 </head>
 <body>
@@ -312,7 +313,7 @@ button{transition:background .15s,transform .15s,box-shadow .15s}button:active{t
 // 不存在或連不上，也只是靜靜留在 demo 模式——下面主程式完全不受影響，不會白屏。
 window.RF_MODE = "demo";
 // 手寫與圖示的自動偵測（src/ink.mjs）跟 Firebase 無關，展示模式也能用；載入失敗就退回手動輸入。
-window.RF_VER = "2026.10.11-2";
+window.RF_VER = "2026.10.11-3";
 // 查證模式的建議、主張轉研究問題、中文轉英文關鍵字都是純函式（src/agent-local.mjs），展示模式也用得到。
 try { window.RFTEAM = await import("./src/teamwork.mjs"); } catch (err) { console.info("[ResearchFlow] 無法載入 teamwork.mjs：", err?.message || err); }
 // 本機模型：使用者電腦上的 Ollama（Qwen）。有偵測到時，關鍵字規劃、翻譯、文獻判讀、手寫辨識都交給它；沒有就用規則式。
@@ -355,6 +356,10 @@ const LVN=["No AI","Research Assistant","Thinking Assistant","Writing Assistant"
 let ROLE="s",ME="A",p=null,S=null,sel=new Set(),tool="sel",pane="agent",editing={},linkFrom=null,uid=100;
 const fresh=()=>({step:0,ver:null,rd:[],scope:{},rq:"",kw:[],rounds:0,ev:[],msg:"",tok:0,skip:false,qs:[],sum:"",scopeReasons:null,qs3:null,tooBroad:null,topic:"",q0:"",strat:null,sq:[],cq:[],mode:"",claim:"",held:[],gone:[],wantCounter:null,saved:[],kwEn:{},kwCore:[]});
 const hasZh=s=>/[一-鿿]/.test(s);
+// 版本鎖定：小組確認讀取結果（關卡 1）時，把這次要分析的內容存成快照（S.snap）。之後的聚焦、研究問題、關鍵字、搜尋都讀快照，
+// 畫布之後再怎麼改，這一輪分析用的內容都不會跟著變；要用新內容就按「重新分析新增內容」。
+const lockSnap=()=>{S.snap=S.rd.map(getO).filter(o=>o&&o.type!=="link").map(o=>({id:o.id,type:o.type,text:o.type==="text"?o.text:o.aiRead,tag:o.tag}));S.snapVer=p.ver};
+const rdItems=()=>S.snap&&S.snap.length?S.snap:(S.rd||[]).map(getO).filter(o=>o&&o.type!=="link").map(o=>({id:o.id,type:o.type,text:o.type==="text"?o.text:o.aiRead,tag:o.tag}));
 /* 關鍵字可以直接輸入中文：中文關鍵字會直接拿去搜尋中文文獻，同時翻成英文（S.kwEn）搜尋國際文獻。 */
 const kwBusy=new Set(); // 正在翻譯的關鍵字（只存在本機）
 // 從一段中文（論點、主張）抽出主題詞放到關鍵字最前面，並翻成英文。查詢只用前幾個關鍵字，所以主題詞要排在聚焦條件（對象、情境）前面。
@@ -383,7 +388,7 @@ function addTopicKw(text){if(!window.RFAGENT||!window.RFINK)return;
 // 內建對照表認得的詞用對照表的英文（人工校對過），模型給的說法併進同義詞；規劃期間學生自己加的關鍵字保留。
 let planBusy=false;
 function planKw(text){if(!AI()||planBusy||!String(text||"").trim())return;planBusy=true;const proj=p,before=S.kw.slice(),re=()=>{if(p===proj&&pane==="agent"&&S.step===4)renderPane()};
- const notes=(S.rd||[]).map(getO).filter(o=>o&&o.type!=="link").map(o=>o.type==="text"?o.text:o.aiRead).filter(Boolean);
+ const notes=rdItems().map(o=>o.text).filter(Boolean);
  RFAI.planSearch({title:p.name,claim:text,notes}).then(r=>{planBusy=false;if(p!==proj||S.step!==4||S.rounds){re();return}
   S.kwEn=S.kwEn||{};S.kwSyn={};
   const ks=r.keywords.map(k=>{const name=k.zh||k.en;let en=k.en,syn=k.synonyms;const known=k.zh&&window.RFAGENT&&RFAGENT.keywordPairs(k.zh).find(x=>x.zh===k.zh);
@@ -395,7 +400,7 @@ function planKw(text){if(!AI()||planBusy||!String(text||"").trim())return;planBu
  err=>{planBusy=false;console.warn("[ResearchFlow] 模型規劃關鍵字失敗，沿用規則式的結果：",err?.message||err);re()});re()}
 // 舊版產生的關鍵字（沒有 kwV 記號）在回到確認頁時重新整理一次
 function upgradeKw(){if(!LIVE()||!window.RFAGENT||!window.RFINK||(S.kwV||0)>=2||!S.kw.length)return;
- const text=S.claim||(S.rd||[]).map(getO).filter(o=>o&&o.type!=="link"&&o.tag!=="question").map(o=>o.type==="text"?o.text:o.aiRead).filter(Boolean).join("。");
+ const text=S.claim||rdItems().filter(o=>o.tag!=="question").map(o=>o.text).filter(Boolean).join("。");
  addTopicKw(text);saveS()}
 // 送去搜尋的關鍵字：主題詞排前面。英文搜尋國際文獻（中文關鍵字用它的英文翻譯），中文另外直接搜尋中文文獻。
 // 舊的研究沒有記主題詞時，把前兩個關鍵字當主題詞。
@@ -404,7 +409,7 @@ function kwSets(){const core=(S.kwCore||[]).filter(k=>S.kw.includes(k)),isCore=k
  // 主題詞裡：翻譯可靠的主題排最前面，其次是研究對象，機器翻譯的排最後——搜尋找不到時會從最後一個開始放寬
  const en=k=>hasZh(k)?(S.kwEn||{})[k]:k,rank=k=>((S.kwWeak||[]).includes(k)?2:/students|teachers|children|adolescents/.test(en(k)||"")?1:0);
  const ordered=[...S.kw.filter(isCore).sort((a,b)=>rank(a)-rank(b)),...S.kw.filter(k=>!isCore(k))];
- const claim=S.claim||((S.rd||[]).map(getO).find(o=>o&&o.tag==="claim")||{}).text||S.q0||"";
+ const claim=S.claim||(rdItems().find(o=>o.tag==="claim")||{}).text||S.q0||"";
  return{keywords:ordered.map(en).filter(Boolean),keywordsZh:ordered.filter(hasZh),coreCount:Math.max(1,S.kw.filter(isCore).map(en).filter(Boolean).length),coreZh:Math.max(1,S.kw.filter(k=>isCore(k)&&hasZh(k)).length),
   claimNeg:!!(window.RFAGENT&&RFAGENT.isNegativeClaim(claim)),claim:[p.name?"報告題目「"+p.name+"」":"",claim||S.rq].filter(Boolean).join("；主張："),synonyms:S.kwSyn||{}}}
 function translateKw(k,manual){if(!window.RFAGENT||!hasZh(k)||kwBusy.has(k))return;kwBusy.add(k);
@@ -441,9 +446,9 @@ const projects=[mkP({name:"AI 與學生學習研究",course:"教育科技導論"
  objs:[mkO({type:"stroke",by:"A",pts:sq(-300,-190),w:3,tag:"",aiRead:"研究主題：生成式 AI 與大學生學習"}),mkO({type:"text",by:"A",x:-300,y:-100,text:"AI 搜尋資料速度比較快。",tag:"claim"}),mkO({type:"text",by:"B",x:-300,y:-30,text:"但是可能產生 AI 依賴。",tag:"counter"}),mkO({type:"text",by:"C",x:-300,y:40,text:"需要確認是否真的提高學習成績。",tag:"question"})]})];
 projects[0].trace=[["19:03","家欣","新增手寫內容。","user"],["19:04","Fanny","新增限制性觀點。","user"],["19:04","小明","新增待驗證問題。","user"]].map(a=>({t:a[0],w:a[1],x:a[2],k:a[3]}));
 const nowT=()=>new Date().toTimeString().slice(0,5);
-// live 模式：歷程寫進 Firestore（畫面上的歷程來自訂閱）。學生端只寫「學生／同步」類紀錄；
-// 「Agent／權限」類紀錄由 Cloud Functions 寫入（規則不允許前端偽造），所以這裡直接略過。
-const traceLive=(fid,w,x,k)=>{if(k==="user"||k==="sync")RFDB.addTrace(fid,{w,x,k},ME).catch(err=>console.error("[ResearchFlow] 寫入歷程失敗：",err))};
+// live 模式：歷程寫進 Firestore（畫面上的歷程來自訂閱）。學生、同步與 Agent 的紀錄都寫入（firestore.rules 允許 k=ai）；
+// 「權限」類紀錄由 db.mjs 的 AI Harness 寫入，這裡不寫。
+const traceLive=(fid,w,x,k)=>{if(k==="user"||k==="sync"||k==="ai")RFDB.addTrace(fid,{w,x,k},ME).catch(err=>console.error("[ResearchFlow] 寫入歷程失敗：",err))};
 const log=(w,x,k="user")=>{if(LIVE()&&p.fid){traceLive(p.fid,w,x,k);return}p.trace.push({t:nowT(),w,x,k})};
 // 老師登入後的首頁是老師端儀表板（v-teach），不是學生的「我的研究」
 const show=id=>{if(id==="proj"&&ROLE==="t")id="teach";["login","proj","teach","ws"].forEach(k=>$("#v-"+k).classList.toggle("hide",k!==id));$("#hr").classList.toggle("hide",id==="login");
@@ -770,6 +775,15 @@ function syncObjsLive(bump=true){if(!LIVE()||!p||!p.fid||!canEdit())return;
 /* 本機模型（Ollama 的 Qwen）。AI()：這個研究現在能不能用模型——有偵測到模型，而且老師沒有把 AI 權限關掉（Level 0）。 */
 const AI=()=>!!(window.RFLLM&&window.RFAI&&RFLLM.status().ok&&p&&p.LV>=1);
 const AIN=()=>window.RFLLM?RFLLM.modelLabel():"";
+// 搜尋輪數預算：預設 3 輪；用完後由小組決定要不要擴大範圍（每次允許多 1 輪）
+const capOf=()=>(S&&S.cap)||3;
+// 每一輪後 Agent 的檢討（自動反思迴圈留下的）
+const reflOf=n=>{const r=(S.refl||[]).find(x=>x.after===n);return r?`<div class="refl"><b>Agent 檢討（${esc(r.by)}）</b>${esc(r.why)}</div>`:""};
+// 關卡 4：搜尋預算用完、證據仍不足時，由小組決定
+const gate4=()=>`<div class="box sm warn"><b>已用完 ${capOf()} 輪搜尋預算，證據還不夠</b><div class="mute" style="margin-top:4px">${esc(evGap())}。Agent 不會自己繼續搜尋，請小組決定：</div><div class="acts"><button class="pri" data-a="expand">允許擴大範圍（再搜 1 輪，放寬條件）</button><button data-a="kwedit">自己修改關鍵字</button><button data-a="stopsearch">停止搜尋，直接看結果</button></div></div>`;
+// 證據頁頁尾：依實際情況說明是誰做的判斷（有標「判讀」的是本機模型讀過摘要，其餘是規則式依用語分類）
+const evNote=what=>{const ev=(S&&S.ev)||[],n=ev.filter(e=>e.ai).length,m=ev.length-n,who=n?(ev.find(e=>e.ai).ai.replace(/（.*$/,"")):"";
+ return what+(n&&m?`：標有「${who} 判讀」的 ${n} 筆由本機模型讀過摘要後判斷，其餘 ${m} 筆是依摘要用語的規則式初步分類。`:n?`由本機模型 ${who} 讀過摘要後判斷（模型在本機執行，資料不送到外部 AI 服務）。`:"是 Agent 依摘要用語做的規則式初步判斷，這一批沒有經過模型判讀。")+"引用前請開啟原始來源，由小組確認。"};
 function aiChip(){const e=$("#aimodel");if(!e||!p)return;const st=window.RFLLM?RFLLM.status():{ok:false,reason:"模組未載入"};
  e.textContent=p.LV<1?"AI：已關閉":st.ok?"AI："+AIN():"AI：規則式";e.className="tag"+(AI()?" ai":"");
  e.title=p.LV<1?"老師把 AI 權限設為 Level 0":st.ok?"關鍵字規劃、翻譯、文獻判讀與手寫辨識由這台電腦上的 "+st.model+"（Ollama）執行，資料不會離開這台電腦。":"沒有偵測到本機模型："+st.reason+"。目前使用內建的規則式程式；安裝 Ollama 與 Qwen 後會自動切換。"}
@@ -960,13 +974,13 @@ const RD=[[0,1],[2,3],[4]],RQ=[["generative AI university students self-directed
 const NEED={analyze:1,re:1,ok1:1,ask:1,rq:2,myrq:1,go:1,round:1,expand:1,board:2,sum:3,report:99};
 const lockedHTML=()=>`<div class="box"><b>此作業未開放 AI</b><p class="sm mute" style="margin:6px 0 0">老師設定為 Level 0。你們仍可使用共享畫布、專案管理與協作功能。</p></div>`;
 const repBtn=()=>`<div class="box sm" style="margin-top:22px"><div class="mute">目前權限：Level ${p.LV}（${LVN[p.LV]}）</div><div class="acts" style="margin-top:8px"><button data-a="report">${I("file")}請 Agent 完成整份報告</button></div></div>`;
-function stale(){if(!S.ver||S.step<1||p.ver<=S.ver||p.LV===0)return "";const n=p.ver-S.ver;return `<div class="box warn sm">自上次 Agent 分析（v${S.ver}）後，Canvas 已有 ${n} 項新修改。是否分析新的研究內容？<div class="acts"><button class="pri" data-a="re">重新分析新增內容</button></div></div>`}
+function stale(){if(!S.ver||S.step<1||p.ver<=S.ver||p.LV===0)return "";const n=p.ver-S.ver;return `<div class="box warn sm">自上次 Agent 分析（v${S.ver}）後，Canvas 已有 ${n} 項新修改。${S.snap&&S.snap.length?"這一輪分析鎖定的是 v"+(S.snapVer||S.ver)+" 的內容，新修改不會影響目前的結果。":""}是否分析新的研究內容？<div class="acts"><button class="pri" data-a="re">重新分析新增內容</button></div></div>`}
 function updStale(){const e=$("#stl");if(e){e.innerHTML=stale();bind(e)}}
 function agentHTML(){const s=S.step;
- const st=["待命，等待你們分析研究方向。","等待你們確認手寫與內容的讀取結果。","研究範圍偏廣，需要先聚焦。","等待你們回答聚焦問題。","等待你們確認研究問題與搜尋策略。",`已搜尋 ${S.rounds}／3 輪，等待你們決定下一步。`,"證據已確認完成，可以開始整理報告。"][s];
+ const st=["待命，等待你們分析研究方向。","等待你們確認手寫與內容的讀取結果。","研究範圍偏廣，需要先聚焦。","等待你們回答聚焦問題。","等待你們確認研究問題與搜尋策略。",`已搜尋 ${S.rounds}／${capOf()} 輪，等待你們決定下一步。`,"證據已確認完成，可以開始整理報告。"][s];
  return `<div class="ah"><span class="ab">${SPARK(26)}</span><div><b>Research Agent</b><div class="sm mute">${st}</div></div></div>
  <div class="flow">${STEPS.map((x,i)=>i!==s&&i<=Math.max(s,S.max||0)&&canEdit()?`<span class="${i<s?"d":""} go" data-a="jump" data-k="${i}" role="button" tabindex="0" title="${i<s?"回到這一步修改":"回到剛才的進度"}">${x}</span>`:`<span class="${i<s?"d":i===s?"c":""}">${x}</span>`).join("")}</div>${Math.max(s,S.max||0)>0&&canEdit()?`<p class="sm mute" style="margin:-4px 0 8px">點上方任何一個走過的步驟都可以回去修改，已經找到的證據會保留。</p>`:""}
- <div class="hl sm"><span>Canvas 版本</span><span>分析 ${S.ver?"v"+S.ver:"—"}／最新 v${p.ver}</span></div><div class="hl sm"><span>${LIVE()?"搜尋輪數":"Token 用量與搜尋輪數（示範）"}</span><span>${LIVE()?"":S.tok.toLocaleString()+" / 60,000　"}${S.rounds}／3</span></div>
+ <div class="hl sm"><span>Canvas 版本</span><span>${S.snap&&S.snap.length?"已鎖定 v"+(S.snapVer||S.ver):"分析 "+(S.ver?"v"+S.ver:"—")}／最新 v${p.ver}</span></div><div class="hl sm"><span>${LIVE()?"搜尋輪數":"Token 用量與搜尋輪數（示範）"}</span><span>${LIVE()?"":S.tok.toLocaleString()+" / 60,000　"}${S.rounds}／${capOf()}</span></div>
  <div id="stl">${stale()}</div>`+(busy?`<div class="box sm warn"><b>Agent 處理中</b><div class="mute">${esc(busy)}</div></div>`:"")+(p.LV===0?lockedHTML():body())+repBtn()}
 // 聚焦問題：live 模式用 Agent 針對這份畫布提出的問題（S.qs3），demo 模式用內建範例。格式統一成 [問題, 代號, 選項]
 const scv=k=>String(S.scope[k]||"").split("、").map(x=>x.trim()).filter(Boolean);
@@ -977,7 +991,7 @@ function body(){const s=S.step,sc=S.scope;
   const g=(t,l)=>{const a=rd.filter(o=>t?o.tag===t:!["claim","counter","question"].includes(o.tag));return a.length?`<h3>${l}</h3>`+a.map(row).join(""):""};
   return `<p class="sm mute">分析範圍：${rd.length} 個物件（Canvas Version ${S.ver}）。手寫內容請確認或直接修正。</p>${g("claim","支持方向")}${g("counter","限制方向")}${g("question","待驗證問題")}${g("","其他內容")}${LIVE()?"":`<div class="box sm"><b>初步研究問題</b><br>生成式 AI 是否能幫助大學生學習？</div>`}<div class="acts"><button class="pri" data-a="ok1">${I("check")}讀取正確</button><button data-a="fix">需要修正</button></div>`}
  if(s===2){const broad=S.tooBroad!==false,rs=S.scopeReasons||["使用「是否能幫助」等高度概括的問法","未指定研究對象與情境","缺乏明確時間範圍","同時包含效果、風險與學術誠信等不同層次"];
-  return `<h3>Agent 判定：${broad?"研究範圍過於廣泛":"研究範圍已足夠聚焦"}</h3>${S.q0?`<div class="box sm"><b>初步研究問題</b><br>${esc(S.q0)}</div>`:""}${rs.map(x=>`<div class="hl sm"><span>${I(broad?"alert":"check")}${esc(x)}</span></div>`).join("")}<p class="sm mute">${broad?"Agent 不會替你們縮小問題，也不會立刻搜尋，會先提出引導式問題。":"接下來請確認研究問題與搜尋策略；確認之前 Agent 不會搜尋。"}</p><div class="acts"><button class="pri" data-a="ask">${broad&&QS().length?"開始聚焦":"繼續"}</button></div>`}
+  return `<h3>Agent 判定：${broad?"研究範圍過於廣泛":"研究範圍已足夠聚焦"}</h3>${LIVE()?`<p class="sm mute">${S.scopeBy?esc(S.scopeBy.replace(/（.*$/,""))+" 讀過白板內容後判斷，聚焦選項依你們的題目產生。":"規則式判斷：依固定詞庫檢查對象、情境、結果有沒有交代。"}</p>`:""}${S.q0?`<div class="box sm"><b>初步研究問題</b><br>${esc(S.q0)}</div>`:""}${rs.map(x=>`<div class="hl sm"><span>${I(broad?"alert":"check")}${esc(x)}</span></div>`).join("")}<p class="sm mute">${broad?"Agent 不會替你們縮小問題，也不會立刻搜尋，會先提出引導式問題。":"接下來請確認研究問題與搜尋策略；確認之前 Agent 不會搜尋。"}</p><div class="acts"><button class="pri" data-a="ask">${broad&&QS().length?"開始聚焦":"繼續"}</button></div>`}
  if(s===3)return `<h3>聚焦問題</h3>`+(QS().length?"":`<p class="sm mute">Agent 認為目前的範圍不需要再追問，可以直接進入研究問題。</p>`)+QS().map(q=>`<div class="sm">${esc(q[0])}<span class="mute">（可複選）</span></div><div class="chips">${q[2].map(x=>`<button data-q="${esc(q[1])}" data-v="${esc(x)}" class="${scv(q[1]).includes(x)?"on":""}">${esc(x)}</button>`).join("")}${LIVE()?`<input data-qo="${esc(q[1])}" value="${esc(scv(q[1]).filter(x=>!q[2].includes(x)).join("、"))}" placeholder="其他（自行輸入，多個用、分開）" style="width:150px;font-size:13px;padding:3px 10px;border-radius:99px">`:""}</div>`).join("")+(p.LV>=2?`<div class="acts"><button class="pri" data-a="rq" ${QS().some(q=>!sc[q[1]])?"disabled":""}>產生 Research Question</button></div>`:`<div class="sm mute">此作業未開放研究問題建議，請由小組自行撰寫。</div><input id="myrq" placeholder="輸入你們的 Research Question" style="margin-top:8px"><div class="acts"><button class="pri" data-a="myrq" ${QS().some(q=>!sc[q[1]])?"disabled":""}>使用這個研究問題</button></div>`);
  if(s===4){upgradeKw();const rows=S.strat?[...S.strat.map(r=>[r.label,r.value]),["搜尋方式","只比對文獻的標題與摘要，而且每個主題詞（或它的同義詞）都要出現；結果依相關度排序"]]:[["研究對象",sc.who],["研究工具","生成式 AI"],["研究情境",sc.ctx],["主要結果",sc.out],["限制／反向結果","認知依賴、批判思考"],["時間範圍","2020–2026"],["證據類型","實證研究（實驗、調查、縱貫）"]];
   const m=MODE(),cm=m==="claim",cands=p.objs.filter(o=>o.type==="text"&&o.tag!=="evidence"&&o.tag!=="question").map(o=>o.text);
@@ -991,12 +1005,12 @@ function body(){const s=S.step,sc=S.scope;
   <h3>搜尋策略</h3>${rows.map(r=>`<div class="hl sm"><span>${esc(r[0])}</span><span>${esc(r[0]==="資料來源"?String(r[1]).replace(/（.*）$/,""):r[1])}</span></div>`).join("")}<p class="sm mute">${cm?"Agent 只會搜尋支持這個主張的證據，依序是：直接證據 → 統整性研究（系統性回顧、後設分析）→ 成立條件與機制。不會主動提供反面例證。":"Agent 會以此建立 Supporting Search 與 Counter / Limiting Search，兩邊的證據都會找。"}</p><div class="acts"><button class="pri" data-a="go">${I("search")}以「${MODE_N[m]}」開始搜尋</button><button data-a="back3">修改範圍</button></div>`}
  if(s===5){const c=S.ev.filter(e=>e.k==="c").length,sp=S.ev.filter(e=>e.k==="s").length,uv=S.ev.filter(e=>!e.v).length,balanced=enoughOf(p);
  if(MODE()==="claim")return claimStep5();
- return `<h3>正反例證進度</h3><div class="box sm mode-procon"><b>正反例證模式</b><div class="mute" style="margin-top:3px">支持與反向的證據都要找；反向證據至少 3 筆才算平衡。</div><div class="bar" style="margin-top:8px"><i style="width:${sp+c?sp/(sp+c)*100:50}%;background:var(--ok)"></i><i style="width:${sp+c?c/(sp+c)*100:50}%;background:#e2662b"></i></div><span class="mute">支持 ${sp} 筆　｜　反向／限制 ${c} 筆</span></div>${S.qs.map((q,i)=>`<div class="box sm"><b>第 ${i+1} 輪查詢</b><div class="mute">${q.map(esc).join("<br>")}</div></div>`).join("")}
+ return `<h3>正反例證進度</h3><div class="box sm mode-procon"><b>正反例證模式</b><div class="mute" style="margin-top:3px">支持與反向的證據都要找；反向證據至少 3 筆才算平衡。</div><div class="bar" style="margin-top:8px"><i style="width:${sp+c?sp/(sp+c)*100:50}%;background:var(--ok)"></i><i style="width:${sp+c?c/(sp+c)*100:50}%;background:#e2662b"></i></div><span class="mute">支持 ${sp} 筆　｜　反向／限制 ${c} 筆</span></div>${S.qs.map((q,i)=>`<div class="box sm"><b>第 ${i+1} 輪查詢</b><div class="mute">${q.map(esc).join("<br>")}</div>${reflOf(i+1)}</div>`).join("")}
  <div class="box sm">${S.msg||"尚未搜尋。"}</div>
  ${S.rounds===1&&!balanced&&!S.skip?`<div class="box warn sm"><b>Evidence Imbalance</b><br>支持證據 ${sp} 筆，反向證據 ${c} 筆。請選擇下一步：<div class="acts"><button class="pri" data-a="round">重新規劃並搜尋</button><button data-a="board">加入討論板</button><button data-a="kwedit">修改搜尋方向</button><button data-a="skip">暫時略過</button></div></div>`:""}
  ${balanced?`<div class="box sm" style="border-color:var(--ok)"><b>${I("check")}證據已足夠</b><div class="mute" style="margin-top:4px">支持 ${sp} 筆．反向／限制 ${c} 筆${uv?`，其中 ${uv} 筆來源待驗證`:""}</div></div>`:""}
- <div class="acts">${!balanced&&(S.rounds!==1||S.skip)&&S.rounds<3?`<button class="pri" data-a="round">執行第 ${S.rounds+1} 輪搜尋</button>`:""}${!balanced&&S.rounds>=3?`<div class="box sm warn">三輪搜尋後仍缺乏足夠的反向證據，是否允許擴大研究範圍？<div class="acts"><button class="pri" data-a="expand">允許擴大</button></div></div>`:""}${balanced&&uv?`<button class="pri" data-a="gotoev">前往證據頁驗證來源</button>`:""}${balanced&&!uv?`<button class="pri" data-a="finishsearch">${I("check")}確認完成，進入整理階段</button>`:""}<button data-a="reset">重新開始分析</button></div>`}
- return `<h3>${I("check")} 證據蒐集已完成</h3><p class="sm mute">支持與反向證據已足夠，來源皆已驗證。可以切換到「研究狀態」或「進度檢核」確認整體進度，或回到畫布整理論點與結論。</p>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<div class="acts">${p.LV>=3?`<button class="pri" data-a="sum">${I("spark")}產生證據摘要</button>`:""}<button data-a="reopen">重新開啟搜尋</button></div>`}
+ <div class="acts">${!balanced&&(S.rounds!==1||S.skip)&&S.rounds<capOf()?`<button class="pri" data-a="round">${!LIVE()?"執行第 "+(S.rounds+1)+" 輪搜尋":S.rounds?"繼續自動搜尋（第 "+(S.rounds+1)+" 輪起）":"開始搜尋"}</button>`:""}${!balanced&&S.rounds>=capOf()?gate4():""}${balanced&&uv?`<button class="pri" data-a="gotoev">前往證據頁驗證來源</button>`:""}${balanced&&!uv?`<button class="pri" data-a="finishsearch">${I("check")}確認完成，進入整理階段</button>`:""}<button data-a="reset">重新開始分析</button></div>`}
+ return `<h3>${I("check")} 證據蒐集已完成</h3><p class="sm mute">${S.stopped?"小組在證據未達門檻時決定停止搜尋（"+esc(evGap())+"）。整理時請註明證據的不足。":"支持與反向證據已足夠，來源皆已驗證。"}可以切換到「研究狀態」或「進度檢核」確認整體進度，或回到畫布整理論點與結論。</p>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<div class="acts">${p.LV>=3?`<button class="pri" data-a="sum">${I("spark")}產生證據摘要</button>`:""}<button data-a="reopen">重新開啟搜尋</button></div>`}
 /* 主張論證模式的搜尋頁：只呈現「支持這個主張的證據夠不夠扎實」。不主動提供反面例證——
    先列出主張的潛在問題（看主張的寫法與證據的組成），再問小組要不要另外找反面例證當參考。 */
 function claimStep5(){const sup=S.ev.filter(e=>e.k==="s"),cn=S.ev.filter(e=>e.k==="c"),high=sup.filter(e=>lvOf(e)==="高").length,uv=S.ev.filter(e=>!e.v).length,ok=enoughOf(p),held=(S.held||[]).length;
@@ -1005,14 +1019,14 @@ function claimStep5(){const sup=S.ev.filter(e=>e.k==="s"),cn=S.ev.filter(e=>e.k=
   :S.wantCounter===false?`你們選擇先不看反面例證。<div class="acts"><button data-a="counter">改變主意，找反面例證</button></div>`
   :`<b>需要反面例證作為參考嗎？</b><div class="mute" style="margin-top:3px">主張論證模式不會主動提供反面例證。如果想知道別人可能怎麼反駁這個主張，可以請 Agent 另外找。</div><div class="acts"><button data-a="counter">需要，找反面例證</button><button data-a="nocounter">先不用</button></div>`;
  return `<h3>主張論證進度</h3><div class="box sm mode-claim"><b>主張論證模式</b><div class="mute" style="margin-top:3px">要論證的主張</div><div style="font-size:14.5px;margin-top:2px">${esc(S.claim)}</div></div>
- ${S.qs.map((q,i)=>`<div class="box sm"><b>第 ${i+1} 輪：${ROUND_N[i]||"補充搜尋"}</b><div class="mute">${q.map(esc).join("<br>")}</div></div>`).join("")}
+ ${S.qs.map((q,i)=>`<div class="box sm"><b>第 ${i+1} 輪：${ROUND_N[i]||"擴大範圍的補充資料"}</b><div class="mute">${q.map(esc).join("<br>")}</div>${reflOf(i+1)}</div>`).join("")}
  <div class="box sm">${S.msg||"尚未搜尋。"}</div>
  <h3>論證強度</h3>
  <div class="hl sm"><span>支持主張的證據</span><span class="st"><i class="dot ${sup.length>=3?"g":sup.length?"y":"r"}"></i>${sup.length} 筆（至少要 3 筆）</span></div>
  <div class="hl sm"><span>證據力高的研究</span><span class="st"><i class="dot ${high?"g":"r"}"></i>${high} 筆（回顧或實驗，至少要 1 筆）</span></div>
  ${S.rounds?`<h3>目前主張下可能有的潛在問題</h3>${issues.length?issues.map(x=>`<div class="box sm warn" style="margin:6px 0">${esc(x)}</div>`).join(""):`<p class="sm mute">從主張的寫法和目前的證據來看，沒有發現明顯的問題。</p>`}<div class="box sm" style="margin-top:12px">${ask}</div>`:""}
  ${ok?`<div class="box sm" style="border-color:var(--ok)"><b>${I("check")}論證的證據已足夠</b><div class="mute" style="margin-top:4px">支持主張 ${sup.length} 筆，其中證據力高 ${high} 筆${uv?`；有 ${uv} 筆來源待驗證`:""}</div></div>`:""}
- <div class="acts">${S.rounds<3?`<button class="${ok?"":"pri"}" data-a="round">${ok?"繼續":"執行"}第 ${S.rounds+1} 輪：${ROUND_N[S.rounds]}</button>`:""}${!ok&&S.rounds>=3?`<div class="box sm warn">三輪搜尋後，支持這個主張的證據仍然不夠。可以修改關鍵字再找，或考慮把主張改得更精確。<div class="acts"><button class="pri" data-a="kwedit">修改搜尋方向</button><button data-a="expand">再追加一輪</button></div></div>`:""}${ok&&uv?`<button class="pri" data-a="gotoev">前往證據頁驗證來源</button>`:""}${ok&&!uv?`<button class="pri" data-a="finishsearch">${I("check")}確認完成，進入整理階段</button>`:""}<button data-a="reset">重新開始分析</button></div>`}
+ <div class="acts">${S.rounds<capOf()?`<button class="${ok?"":"pri"}" data-a="round">${ok?"繼續":"執行"}第 ${S.rounds+1} 輪：${ROUND_N[S.rounds]||"擴大範圍的補充資料"}</button>`:""}${!ok&&S.rounds>=capOf()?gate4():""}${ok&&uv?`<button class="pri" data-a="gotoev">前往證據頁驗證來源</button>`:""}${ok&&!uv?`<button class="pri" data-a="finishsearch">${I("check")}確認完成，進入整理階段</button>`:""}<button data-a="reset">重新開始分析</button></div>`}
 function bind(r=document){r.querySelectorAll("details[data-ei]").forEach(d=>d.ontoggle=()=>{const e=S.ev[+d.dataset.ei];if(d.open&&e)zhFor(e.id)});
  r.querySelectorAll(".flow .go").forEach(x=>x.onkeydown=e=>{if(e.key==="Enter")x.click()});
  r.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{const k=b.dataset.q,v=b.dataset.v,cur=scv(k),nx=cur.includes(v)?cur.filter(x=>x!==v):[...cur,v];if(nx.length)S.scope[k]=nx.join("、");else delete S.scope[k];saveS();renderPane()});
@@ -1231,9 +1245,9 @@ function evHTML0(){if(!S.ev.length)return `<h3>Evidence Map</h3><p class="sm mut
   <h3>證據力高：系統性回顧、實驗研究</h3>${grp(l=>l==="高")}<h3>證據力中：長期追蹤、問卷調查</h3>${grp(l=>l==="中")}<h3>證據力較低或方法不明</h3>${grp(l=>l!=="高"&&l!=="中")}
   ${zhMore()}
   ${S.wantCounter===true?`<h3>反面例證（參考用）</h3><p class="sm mute" style="margin-top:-2px">這是應你們的要求另外找的，用來預想別人可能怎麼反駁，不計入論證強度。</p>${li("c")}`:""}
-  <div class="acts"><button data-a="sum">產生證據摘要（Level 3）</button></div>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<p class="note">${LIVE()?"文獻書目與摘要來自 OpenAlex 公開學術資料庫。證據力與「是否支持主張」是 Agent 依摘要用語做的規則式初步判斷（未使用生成式 AI），引用前請開啟原始來源，由小組確認。":"示範資料：此原型未連接真實學術資料庫，文獻不代表真實研究。"}</p>`}
+  <div class="acts"><button data-a="sum">產生證據摘要（Level 3）</button></div>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<p class="note">${LIVE()?"文獻書目與摘要來自 OpenAlex 公開學術資料庫。"+evNote("證據力與「是否支持主張」"):"示範資料：此原型未連接真實學術資料庫，文獻不代表真實研究。"}</p>`}
  return `<h3>正反例證</h3><div class="box sm mode-procon"><b>${esc(S.rq||"研究問題")}</b><div class="bar"><i style="width:${sp.length/tot*100}%;background:var(--ok)"></i><i style="width:${cn.length/tot*100}%;background:#e2662b"></i></div><span class="mute">支持 ${sp.length}　限制／反向 ${cn.length}</span></div><h3>支持證據</h3>${li("s")}<h3>限制／反向證據</h3>${li("c")}${zhMore()}
- <div class="acts"><button data-a="sum">產生證據摘要（Level 3）</button></div>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<p class="note">${LIVE()?"文獻書目與摘要來自 OpenAlex 公開學術資料庫。「支持／反向」是 Agent 依摘要用語做的規則式初步分類（未使用生成式 AI），引用前請開啟原始來源，由小組確認。":"示範資料：此原型未連接真實學術資料庫，文獻不代表真實研究。"}</p>`}
+ <div class="acts"><button data-a="sum">產生證據摘要（Level 3）</button></div>${S.sum?`<div class="box sm">${esc(S.sum)}</div>`:""}<p class="note">${LIVE()?"文獻書目與摘要來自 OpenAlex 公開學術資料庫。"+evNote("「支持／反向」"):"示範資料：此原型未連接真實學術資料庫，文獻不代表真實研究。"}</p>`}
 
 /* Agent 行為（AI Harness 權限與人工確認） */
 function act(a,k){const w=U[ME].n,L=p.LV;
@@ -1242,9 +1256,9 @@ function act(a,k){const w=U[ME].n,L=p.LV;
  if(LIVE()&&LIVE_ACTS.has(a)){if(!canEdit()){alert("你的角色為唯讀，無法執行 Agent。");return}actLive(a,w);return}
  if(L<(NEED[a]||0)){log("Harness",a==="report"?"拒絕 generate_report：此能力未開放，研究結論與報告由學生完成。":`拒絕 ${a}：目前權限 Level ${L} 不允許此操作。`,"sys");alert(a==="report"?"AI Harness 已拒絕：ResearchFlow 不代替學生完成整份報告。":"目前的老師權限設定不允許此操作。");renderPane();return}
  if(!canEdit()&&a!=="report"){alert("你的角色為唯讀，無法執行 Agent。");return}
- if(a==="analyze"||a==="re"){const ids=(a==="re"||!sel.size?p.objs:p.objs.filter(o=>sel.has(o.id))).filter(o=>o.type!=="link");S.rd=ids.map(o=>o.id);ids.forEach((o,i)=>{o.read=true;if(o.type==="stroke"&&!o.aiRead&&!o.hwSub)o.aiRead="（未能辨識，請手動輸入）"});S.ver=p.ver;S.step=1;S.tok+=3200;log(w,"選取研究區域並要求 Agent 分析。");log("Agent",`讀取 Canvas Version ${p.ver}（${ids.length} 個物件）。`,"ai")}
+ if(a==="analyze"||a==="re"){const ids=(a==="re"||!sel.size?p.objs:p.objs.filter(o=>sel.has(o.id))).filter(o=>o.type!=="link");S.rd=ids.map(o=>o.id);S.snap=null;ids.forEach((o,i)=>{o.read=true;if(o.type==="stroke"&&!o.aiRead&&!o.hwSub)o.aiRead="（未能辨識，請手動輸入）"});S.ver=p.ver;S.step=1;S.tok+=3200;log(w,"選取研究區域並要求 Agent 分析。");log("Agent",`讀取 Canvas Version ${p.ver}（${ids.length} 個物件）。`,"ai")}
  if(a==="fix"){log(w,"標示 AI 讀取內容需修正；修改畫布後可重新分析。");S.step=0;S.ver=null}
- if(a==="ok1"){S.rd.map(getO).filter(Boolean).forEach(o=>{if(o.type==="stroke"){const v=$("#rd"+o.id);if(v&&v.value!==o.aiRead)log(w,"修正 AI 對手寫內容的讀取結果。");if(v)o.aiRead=v.value}o.conf=true});S.step=2;S.tok+=900;log(w,"確認 AI 的讀取結果。");log("Agent","判斷 Research Question 過於廣泛。","ai")}
+ if(a==="ok1"){S.rd.map(getO).filter(Boolean).forEach(o=>{if(o.type==="stroke"){const v=$("#rd"+o.id);if(v&&v.value!==o.aiRead)log(w,"修正 AI 對手寫內容的讀取結果。");if(v)o.aiRead=v.value}o.conf=true});S.step=2;S.tok+=900;log(w,"確認 AI 的讀取結果。");lockSnap();log(w,`鎖定這次分析的畫布內容（v${p.ver}）。`);log("Agent","判斷 Research Question 過於廣泛。","ai")}
  if(a==="ask"){S.step=3;S.tok+=900;log("Agent","提出 3 個引導式聚焦問題。","ai")}
  if(a==="rq"||a==="myrq"){const sc=S.scope;S.rq=a==="myrq"?($("#myrq").value.trim()||"（尚未填寫）"):`${sc.who}在${sc.ctx}情境中使用生成式 AI，對${sc.out}有何影響？同時有哪些限制（如認知依賴）？`;S.kw=["generative AI","student learning",sc.who==="大學生"?"university students":"students","cognitive offloading","critical thinking","AI dependency"];S.step=4;S.tok+=1800;log(a==="rq"?"Agent":w,a==="rq"?"產生 Research Question 與關鍵字草案。":"自行撰寫 Research Question；Agent 產生關鍵字草案。",a==="rq"?"ai":"user")}
  if(a==="kwx")S.kw.splice(+k,1);
@@ -1264,14 +1278,19 @@ function act(a,k){const w=U[ME].n,L=p.LV;
   if(window.RFAGENT){const pairs=RFAGENT.keywordPairs(c),ck=pairs.map(x=>x.zh||x.en);S.kwEn=S.kwEn||{};pairs.forEach(x=>{if(x.zh)S.kwEn[x.zh]=x.en});S.kw=[...ck,...S.kw.filter(x=>!ck.includes(x))];addTopicKw(c)} // 主張本身的關鍵字排最前面
   log(w,"選定要查證的主張："+c)}
  if(a==="go"){if(MODE()==="claim"&&!S.claim){alert("主張論證模式需要先選定一個要查證的主張。");return}
-  S.rq=$("#rqi")?$("#rqi").value:S.rq;S.mode=MODE();S.step=5;S.msg="尚未搜尋。";log(w,"確認 Research Question、關鍵字與搜尋策略，以「"+MODE_N[S.mode]+"」開始查證。")}
+  S.rq=$("#rqi")?$("#rqi").value:S.rq;S.mode=MODE();S.step=5;S.msg=S.rounds?S.msg:"尚未搜尋。";
+  if(LIVE()&&S.rounds&&S.rounds>=capOf()){S.cap=S.rounds+1;log(w,`修改關鍵字後再搜尋：搜尋預算增加為 ${S.cap} 輪。`)}
+  log(w,"確認 Research Question、關鍵字與搜尋策略，以「"+MODE_N[S.mode]+"」開始查證。")}
  if(a==="round"){const ids=RD[S.rounds];S.qs.push(RQ[S.rounds]);S.rounds++;ids.forEach(i=>S.ev.push({...EV[i],v:!EV[i].u,id:i}));S.tok+=6400;
   const c=S.ev.filter(e=>e.k==="c").length;
   log("Agent",S.rounds===1?"搜尋 Supporting Evidence。":`建立第 ${S.rounds} 輪搜尋策略並搜尋。`,"ai");S.rounds===1&&log("Agent","發現 Counter Evidence 不足。","ai");S.rounds>1&&log("Agent",`新增 ${ids.length} 篇證據。`,"ai");
   S.msg=S.rounds===1?"支持證據已找到，但反向證據不足（Evidence Imbalance）。"+(p.LV>=2?"建議改搜 cognitive offloading、AI dependency。":""):c>=3?"已取得反向證據；其中 1 筆研究範圍僅部分重疊，標記為間接證據並待驗證。":"反向證據仍不足。"}
  // 展示模式的主張論證：示範資料裡「反向」的文獻先保留不顯示，跟連線模式的行為一致
  if(a==="round"&&MODE()==="claim"){S.held=(S.held||[]).concat(S.ev.filter(e=>e.k==="c"&&!e.ref));S.ev=S.ev.filter(e=>e.k!=="c"||e.ref);S.msg=`目前有 ${S.ev.filter(e=>e.k==="s").length} 筆支持主張的示範文獻。`}
- if(a==="expand"){S.rounds=2;log(w,"允許擴大研究範圍，追加一輪搜尋。")}
+ // 關卡 4：輪數預算用完、證據還不夠。小組決定擴大範圍（多給 1 輪，條件放寬）或停止搜尋、直接看目前的結果。
+ if(a==="expand"){if(LIVE()){S.cap=capOf()+1;S.broad=(S.broad||0)+1;S.manual=false;log(w,`允許擴大研究範圍：搜尋預算增加為 ${S.cap} 輪，下一輪放寬主題詞與研究對象的條件。`);saveS();actLive("round",w);return}
+  S.rounds=2;log(w,"允許擴大研究範圍，追加一輪搜尋。")}
+ if(a==="stopsearch"){S.step=6;S.stopped=true;log(w,`輪數預算用完、證據未達門檻（${evGap()}），小組決定停止搜尋，直接看目前的結果。`)}
  if(a==="skip"){S.skip=true;log(w,"暫時略過 Evidence Imbalance 提示。")}
  if(a==="board"){p.objs.push(mkO({type:"text",by:ME,x:120,y:-100,text:"待討論：反向證據不足，是否補充 cognitive offloading 研究？",tag:"question"}));op("將 Agent 建議加入討論板（經學生確認）");log(w,"將 Agent 建議加入討論板。")}
  // 主張論證模式：把不支持主張的文獻移出清單（之後的搜尋也不會再找回來）
@@ -1303,15 +1322,34 @@ function act(a,k){const w=U[ME].n,L=p.LV;
 /* live 模式的 Agent 動作：交給資料層（src/db.mjs → agent-local.mjs：規則式判斷＋OpenAlex）。等待期間 busy 有值，側欄按鈕全部鎖住；
    失敗（含被 AI Harness 拒絕）時把後端的說明顯示給使用者，流程停在原本的步驟，不會退回內建範例假裝成功。 */
 const LIVE_ACTS=new Set(["ok1","rq","myrq","round","counter","sum","report"]);
+// 還缺什麼（給 Agent 反思與畫面說明用）
+function evGap(){const sup=S.ev.filter(e=>e.k==="s"),c=S.ev.filter(e=>e.k==="c").length;
+ return MODE()==="claim"?`支持主張的證據 ${sup.length} 筆（至少要 3 筆）${sup.some(e=>lvOf(e)==="高")?"":"，還沒有回顧或實驗研究"}`:`反向／限制證據 ${c} 筆（至少要 3 筆）`}
+// 反思：檢討這一輪為什麼不夠，調整下一輪的關鍵字。有本機模型時由模型判斷並換關鍵字；沒有時用規則（條件太嚴就少用一個主題詞）。
+// 每一輪的方向本來就會換（支持 → 負面與限制 → 統整性研究），這裡再加上關鍵字的調整。檢討內容寫進研究歷程，畫面上也看得到。
+async function reflectRound(r){const n=S.rounds,gap=evGap(),dir=window.RFAGENT?RFAGENT.nextDirection(n,MODE()):"";let why="",by="規則式";
+ if(AI())try{const enOf=k=>(hasZh(k)?(S.kwEn||{})[k]:k)||k;
+  const out=await RFAI.reflectSearch({claim:kwSets().claim,gap,keywords:S.kw.map(k=>({zh:hasZh(k)?k:"",en:enOf(k),core:kwIsCore(k),synonyms:(S.kwSyn||{})[enOf(k).toLowerCase()]||[]})),found:(r.evidence||[]).map(e=>e.t),queries:S.qs.flat()});
+  S.kwEn=S.kwEn||{};S.kwSyn=S.kwSyn||{};
+  const ks=out.keywords.map(k=>{const name=hasZh(k.zh)?k.zh:k.en;if(hasZh(name))S.kwEn[name]=k.en;S.kwSyn[k.en.toLowerCase()]=k.synonyms;return{name,core:k.role==="core"}});
+  S.kw=ks.map(k=>k.name);S.kwCore=ks.filter(k=>k.core).map(k=>k.name);S.kwWeak=[];
+  why=`${out.reason}下一輪關鍵字：${ks.map(k=>k.name+(S.kwEn[k.name]?"（"+S.kwEn[k.name]+"）":"")).join("、")}${dir?"，方向改找「"+dir+"」":""}。`;by=AIN().replace(/（.*$/,"")}
+ catch(err){console.warn("[ResearchFlow] 模型反思失敗，改用規則式：",err?.message||err)}
+ if(!why&&window.RFAGENT){const cc=kwSets().coreCount,rr=RFAGENT.reflectRule({coreCount:cc,found:r.scanned||0,round:n,mode:MODE(),gap});
+  if(rr.coreCount<cc){const core=S.kw.filter(kwIsCore);S.kwCore=core.slice(0,rr.coreCount)}why=rr.reason}
+ (S.refl=S.refl||[]).push({after:n,by,why});
+ log("Agent",`第 ${n} 輪後證據不足，自動檢討（${by}）：${why}接著自動進行第 ${n+1} 輪。`,"ai");return why}
+// 擴大範圍：主題詞少用一個（最少留 2 個）、不加範圍詞（研究對象、情境），讓更多文獻符合條件
+const broadKw=o=>{if(!S.broad)return o;const n=Math.max(Math.min(2,o.coreCount),o.coreCount-S.broad);return{...o,coreCount:n,keywords:o.keywords.slice(0,n)}};
 async function actLive(a,w){
- const items=()=>S.rd.map(getO).filter(o=>o&&o.type!=="link").map(o=>({type:o.type,text:o.type==="text"?o.text:o.aiRead,tag:o.tag}));
+ const items=()=>rdItems().map(o=>({type:o.type,text:o.text,tag:o.tag}));
  let label,job;
  if(a==="ok1"){
   S.rd.map(getO).filter(Boolean).forEach(o=>{if(o.type==="stroke"){const v=$("#rd"+o.id);if(v&&v.value!==o.aiRead)log(w,"修正 AI 對手寫內容的讀取結果。");if(v)o.aiRead=v.value}o.conf=true});
-  log(w,"確認 AI 的讀取結果。");
+  log(w,"確認 AI 的讀取結果。");lockSnap();log(w,`鎖定這次分析的畫布內容（v${p.ver}，共 ${S.snap.length} 項）。`);
   label="判斷研究範圍中…";
   job=async()=>{const r=await RFDB.analyzeScope(p.fid,items());
-   Object.assign(S,{topic:r.topic,q0:r.draftQuestion,tooBroad:r.tooBroad,scopeReasons:r.reasons,qs3:r.tooBroad?r.clarifyingQuestions.filter(q=>q.options.length>=2):[],scope:{},step:2})}}
+   Object.assign(S,{topic:r.topic,q0:r.draftQuestion,tooBroad:r.tooBroad,scopeReasons:r.reasons,scopeBy:r.by||"",qs3:r.tooBroad?r.clarifyingQuestions.filter(q=>q.options.length>=2):[],scope:{},step:2})}}
  if(a==="rq"||a==="myrq"){
   const own=a==="myrq"?$("#myrq").value.trim():"";
   if(a==="myrq"&&!own){alert("請先輸入你們的 Research Question。");return}
@@ -1323,20 +1361,23 @@ async function actLive(a,w){
    addTopicKw(items().filter(x=>x.tag!=="question").map(x=>x.text).join("。"))}}
  if(a==="round"){
   // 查詢由小組確認過的關鍵字組成：第 1 輪找支持方向，第 2 輪起加上負面／限制用語找反向方向（見 agent-local.mjs 的 buildQueries）
-  const n=S.rounds;
   if(!S.kw.length){alert("請先回到上一步新增至少一個搜尋關鍵字。");return}
-
-  label=`第 ${n+1} 輪：搜尋 OpenAlex 學術資料庫中…`;
   const known=()=>[...S.ev,...(S.held||[])].map(e=>e.id).concat(S.gone||[]);
-  if(MODE()==="claim")label=`第 ${n+1} 輪：搜尋${ROUND_N[n]||"補充資料"}中…`;
-  if(AI())label+=`（找到後 ${AIN()} 會逐篇閱讀摘要，約需 1 分鐘）`;
-  job=async()=>{const r=await RFDB.searchEvidence(p.fid,{...kwSets(),round:n,excludeIds:known(),mode:MODE()});
+  const roundLabel=n=>{let l=MODE()==="claim"?`第 ${n+1} 輪：搜尋${ROUND_N[n]||"擴大範圍的補充資料"}中…`:`第 ${n+1} 輪：搜尋 OpenAlex 學術資料庫中…`;if(AI())l+=`（找到後 ${AIN()} 會逐篇閱讀摘要，約需 1 分鐘）`;return l};
+  label=roundLabel(S.rounds);
+  // 反思迴圈（第 5 頁流程圖第 4 階段）：每一輪搜尋完，Agent 自己檢查證據缺口；還不夠、而且沒用完輪數預算時，
+  // 自己檢討原因、調整關鍵字，接著搜下一輪，不用學生一輪一輪按。用完預算（預設 3 輪）就停下來，等小組決定要不要擴大範圍。
+  job=async()=>{for(;;){const n=S.rounds;busy=roundLabel(n);renderPane();
+   const r=await RFDB.searchEvidence(p.fid,{...broadKw(kwSets()),round:n,excludeIds:known(),mode:MODE()});
    S.qs.push(r.queries);S.rounds++;S.ev.push(...r.evidence);S.held=(S.held||[]).concat(r.held||[]);setTimeout(zhFill,300);
    const ns=r.evidence.filter(e=>e.k==="s").length,nc=r.evidence.length-ns,c=S.ev.filter(e=>e.k==="c").length,uv=S.ev.filter(e=>!e.v).length;
    const off=((r.relaxed||[]).length?`同時提到所有主題詞的文獻太少，已放寬「${r.relaxed.join("、")}」這個條件（放寬後找到的標為相關度中）。`:"")+(r.dropped?`另有 ${r.dropped} 篇不夠切題，已排除。`:"")+(r.fallback?"OpenAlex 今天的查詢額度已用完，這一輪改用 Crossref 資料庫（沒有中文文獻）。":"")
     +(r.ai&&r.ai.model?`${r.ai.model} 讀過 ${r.ai.judged} 篇摘要${r.ai.removed?"，排除 "+r.ai.removed+" 篇不切題的":""}，並依研究發現判斷立場；「主要發現」是模型寫的，請對照原文。`:r.ai&&r.ai.error&&window.RFLLM&&RFLLM.status().ok?"模型判讀失敗，這一輪改用規則式分類。":"");
-   if(MODE()==="claim"){S.msg=`本輪找到 ${ns} 篇支持主張的文獻（請到「證據」頁確認）。`+off+(enoughOf(p)?"論證的證據已達門檻。":"證據還不夠：支持主張的證據至少要 3 筆，而且其中要有回顧或實驗研究。")+(uv?`其中 ${uv} 篇沒有 DOI，標記為來源待驗證。`:"");return}
-   S.msg=(r.scanned?`本輪找到 ${r.scanned} 篇切題的新文獻，初步分類為支持 ${ns} 篇、反向／限制 ${nc} 篇（請到「證據」頁確認分類）。`:"本輪沒有找到同時提到所有主題詞的新文獻。可以按「修改搜尋方向」減少主題詞，或換一個說法。")+off+(c<3?"反向證據仍不足（Evidence Imbalance）。":"反向證據已達 3 篇。")+(uv?`其中 ${uv} 篇沒有 DOI，標記為來源待驗證。`:"")}}
+   if(MODE()==="claim"){S.msg=`本輪找到 ${ns} 篇支持主張的文獻（請到「證據」頁確認）。`+off+(enoughOf(p)?"論證的證據已達門檻。":"證據還不夠：支持主張的證據至少要 3 筆，而且其中要有回顧或實驗研究。")+(uv?`其中 ${uv} 篇沒有 DOI，標記為來源待驗證。`:"");}else{
+   S.msg=(r.scanned?`本輪找到 ${r.scanned} 篇切題的新文獻，初步分類為支持 ${ns} 篇、反向／限制 ${nc} 篇（請到「證據」頁確認分類）。`:"本輪沒有找到同時提到所有主題詞的新文獻。可以按「修改搜尋方向」減少主題詞，或換一個說法。")+off+(c<3?"反向證據仍不足（Evidence Imbalance）。":"反向證據已達 3 篇。")+(uv?`其中 ${uv} 篇沒有 DOI，標記為來源待驗證。`:"")}
+   if(enoughOf(p)||S.rounds>=capOf()||S.manual)break;
+   busy=`第 ${S.rounds} 輪證據還不夠，Agent 正在檢討原因並調整關鍵字…`;renderPane();
+   await reflectRound(r);saveS()}}}
  if(a==="counter"){
   // 小組看完潛在問題後主動要求：另外搜尋反面例證，連同先前保留不顯示的文獻一起列為「參考用」
   log(w,"檢視主張的潛在問題後，要求參考反面例證。");

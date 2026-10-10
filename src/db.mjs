@@ -18,7 +18,7 @@ import { firebaseConfig } from './firebase-config.js';
 import { checkAgentCall } from './harness.mjs';
 import * as agent from './agent-local.mjs';
 import * as llm from './llm.mjs';
-import { refineEvidence } from './agent-llm.mjs';
+import { refineEvidence, scopeFocus, draftQuestion } from './agent-llm.mjs';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -50,7 +50,15 @@ const agentLog = (projectId, uid, x) => addTrace(projectId, { w: 'Agent', x, k: 
 export async function analyzeScope(projectId, items) {
   const uid = await guard(projectId, 'analyzeScope');
   const out = agent.analyzeScope(items);
-  await agentLog(projectId, uid, out.tooBroad ? `判斷研究範圍需要先聚焦，提出 ${out.clarifyingQuestions.length} 個引導式問題。` : '判斷研究範圍已足夠聚焦。');
+  // 有本機模型時：由模型讀白板內容判斷範圍，聚焦選項依題目產生；沒有或失敗時用規則式（固定詞庫與固定選項）
+  let by = '';
+  const st = await llm.detect();
+  if (st.ok && out.topic) {
+    try { Object.assign(out, await scopeFocus({ topic: out.topic, items: (items || []).filter((it) => it && String(it.text || '').trim()) })); by = `（${llm.modelLabel(st.textModel || st.model)} 判斷）`; }
+    catch (err) { console.warn('[ResearchFlow] 模型判斷範圍失敗，改用規則式：', err?.message || err); }
+  }
+  out.by = by ? llm.modelLabel(st.textModel || st.model) : '';
+  await agentLog(projectId, uid, (out.tooBroad ? `判斷研究範圍需要先聚焦，提出 ${out.clarifyingQuestions.length} 個引導式問題。` : '判斷研究範圍已足夠聚焦。') + by);
   return out;
 }
 
@@ -58,7 +66,15 @@ export async function analyzeScope(projectId, items) {
 export async function proposeQuestion(projectId, { items, answers, ownQuestion }) {
   const uid = await guard(projectId, ownQuestion ? 'proposeKeywords' : 'proposeQuestion');
   const out = agent.proposeQuestion({ items, answers, ownQuestion });
-  await agentLog(projectId, uid, ownQuestion ? '依學生自行撰寫的 Research Question 產生關鍵字草案。' : '產生 Research Question 與關鍵字草案。');
+  let by = '';
+  if (!ownQuestion) {
+    const st = await llm.detect();
+    if (st.ok) {
+      try { out.researchQuestion = await draftQuestion({ topic: agent.topicOf(items), items: items || [], answers: answers || [] }); by = `（研究問題由 ${llm.modelLabel(st.textModel || st.model)} 撰寫）`; }
+      catch (err) { console.warn('[ResearchFlow] 模型撰寫研究問題失敗，改用規則式句型：', err?.message || err); }
+    }
+  }
+  await agentLog(projectId, uid, (ownQuestion ? '依學生自行撰寫的 Research Question 產生關鍵字草案。' : '產生 Research Question 與關鍵字草案。') + by);
   return out;
 }
 
@@ -78,8 +94,8 @@ export async function searchEvidence(projectId, { keywords, keywordsZh, coreCoun
   out.ai = { model: '', judged: 0, removed: 0, error: st.ok ? '' : st.reason };
   if (st.ok && out.evidence.length) {
     try {
-      const r = await refineEvidence({ claim, evidence: out.evidence, model: llm.modelLabel(st.model) });
-      Object.assign(out, { evidence: r.evidence, scanned: r.evidence.length, ai: { model: llm.modelLabel(st.model), judged: r.judged, removed: r.removed, error: '' } });
+      const r = await refineEvidence({ claim, evidence: out.evidence, model: llm.modelLabel(st.textModel || st.model) });
+      Object.assign(out, { evidence: r.evidence, scanned: r.evidence.length, ai: { model: llm.modelLabel(st.textModel || st.model), judged: r.judged, removed: r.removed, error: '' } });
     } catch (err) {
       out.ai.error = String(err?.message || err).slice(0, 120);
       out.evidence = out.evidence.slice(0, 10); out.scanned = out.evidence.length;

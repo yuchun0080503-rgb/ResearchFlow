@@ -48,17 +48,111 @@ export async function planSearch({ title, claim, notes = [] }, fetchImpl) {
     },
     maxTokens: 500,
   }, fetchImpl);
+  const keywords = normKeywords(out.keywords);
+  if (keywords.filter((k) => k.role === 'core').length < 1) throw new Error('模型沒有給出主題詞');
+  return { focus: clip(out.focus, 120), keywords };
+}
+
+// planSearch／reflectSearch 共用：整理模型給的關鍵字
+function normKeywords(list) {
   const seen = new Set();
   // 模型偶爾還是會把兩個概念用逗號寫在一起：拆開成各自的關鍵字
-  const split = (out.keywords || []).flatMap((k) => {
+  const split = (list || []).flatMap((k) => {
     const en = String(k.en || '').split(/\s*[,;，、]\s*/).filter(Boolean), zh = String(k.zh || '').split(/\s*[,;，、]\s*/).filter(Boolean);
     return en.length > 1 ? en.map((e, i) => ({ ...k, en: e, zh: zh[i] || '', synonyms: i === en.length - 1 ? k.synonyms : [] })) : [k];
   });
   const keywords = split
     .map((k) => ({ zh: clip(k.zh, 20), en: clip(k.en, 60).toLowerCase(), role: k.role === 'scope' ? 'scope' : 'core', synonyms: (k.synonyms || []).map((s) => clip(s, 60).toLowerCase()).filter((s) => s && /^[\x20-\x7e]+$/.test(s)).slice(0, 3) }))
     .filter((k) => k.en && /^[\x20-\x7e]+$/.test(k.en) && !seen.has(k.en) && seen.add(k.en));
-  if (keywords.filter((k) => k.role === 'core').length < 1) throw new Error('模型沒有給出主題詞');
-  return { focus: clip(out.focus, 120), keywords };
+  return keywords;
+}
+
+const KW_SCHEMA = {
+  type: 'array', minItems: 2, maxItems: 5,
+  items: { type: 'object', required: ['zh', 'en', 'role', 'synonyms'], properties: { zh: str, en: str, role: { type: 'string', enum: ['core', 'scope'] }, synonyms: { type: 'array', items: str, maxItems: 3 } } },
+};
+
+/**
+ * 判斷研究範圍：讀畫布上的內容，看研究對象、情境、結果三個面向有沒有交代清楚；
+ * 沒交代的面向，依這個題目提出聚焦問題和 3 到 4 個選項（選項要跟題目有關，不是固定的清單）。
+ * @param {object} o
+ * @param {string} o.topic 題目
+ * @param {{text:string, tag?:string}[]} o.items 畫布上確認過的內容
+ * @returns {Promise<{tooBroad:boolean, reasons:string[], clarifyingQuestions:{key:'who'|'ctx'|'out', question:string, options:string[]}[], draftQuestion:string}>}
+ */
+export async function scopeFocus({ topic, items = [] }, fetchImpl) {
+  const out = await chatJSON({
+    system:
+      '你是協助大學生做小組研究報告的研究助理。學生在白板上討論，你要判斷他們的研究範圍是不是太廣、還不能拿去搜尋文獻。\n' +
+      '檢查三個面向有沒有交代：who 研究對象（哪一群人）、ctx 研究情境（在什麼情況下使用或發生）、out 主要結果（想知道對什麼的影響）。\n' +
+      '規則：\n' +
+      '1. 白板內容已經清楚寫出的面向不要再問。三個都清楚時 tooBroad 為 false、questions 為空陣列。\n' +
+      '2. 每個沒交代的面向出一題：question 用一句繁體中文問小組，options 給 3 到 4 個「跟這個題目有關」的具體選項（每個 2 到 8 個字），不要給跟題目無關的通用選項。\n' +
+      '3. reasons 用繁體中文簡短列出判斷理由（1 到 3 條）。\n' +
+      '4. draftQuestion 用一句繁體中文寫出目前看起來的研究問題草稿。',
+    user: `題目：${clip(topic, 120) || '（未填）'}\n白板內容：\n${items.map((it) => '- ' + clip(it.text, 120) + (it.tag ? `（${it.tag}）` : '')).filter(Boolean).slice(0, 14).join('\n')}`,
+    schema: {
+      type: 'object', required: ['tooBroad', 'reasons', 'questions', 'draftQuestion'],
+      properties: {
+        tooBroad: { type: 'boolean' }, reasons: { type: 'array', items: str, maxItems: 3 }, draftQuestion: str,
+        questions: { type: 'array', maxItems: 3, items: { type: 'object', required: ['key', 'question', 'options'], properties: { key: { type: 'string', enum: ['who', 'ctx', 'out'] }, question: str, options: { type: 'array', items: str, minItems: 2, maxItems: 4 } } } },
+      },
+    },
+    maxTokens: 700,
+  }, fetchImpl);
+  const seen = new Set();
+  const qs = (out.questions || [])
+    .filter((q) => ['who', 'ctx', 'out'].includes(q.key) && !seen.has(q.key) && seen.add(q.key))
+    .map((q) => ({ key: q.key, question: clip(q.question, 60), options: [...new Set((q.options || []).map((o) => clip(o, 16)).filter(Boolean))].slice(0, 4) }))
+    .filter((q) => q.question && q.options.length >= 2);
+  const tooBroad = !!out.tooBroad && qs.length > 0;
+  return { tooBroad, reasons: (out.reasons || []).map((r) => clip(r, 80)).filter(Boolean).slice(0, 3), clarifyingQuestions: tooBroad ? qs : [], draftQuestion: clip(out.draftQuestion, 120) };
+}
+
+/**
+ * 依白板內容和小組對聚焦問題的回答，寫出一句可以拿去查文獻的研究問題。
+ * @returns {Promise<string>}
+ */
+export async function draftQuestion({ topic, items = [], answers = [] }, fetchImpl) {
+  const out = await chatJSON({
+    system: '你是協助大學生做研究報告的研究助理。根據題目、白板內容與小組選定的聚焦方向，寫出一句具體、可以拿去搜尋學術文獻的研究問題（繁體中文，40 字以內）。要包含研究對象、情境與結果；用「如何」「有什麼關聯」「差異為何」這類開放的問法，不要用「會不會」「是否」「嗎」寫成是非題，也不要預設答案。',
+    user: `題目：${clip(topic, 120) || '（未填）'}\n白板內容：${items.map((it) => clip(it.text, 80)).filter(Boolean).slice(0, 10).join('；')}\n小組選定的聚焦方向：${answers.map((a) => `${clip(a.question, 30)} → ${clip(a.answer, 40)}`).join('；') || '（無）'}`,
+    schema: { type: 'object', required: ['question'], properties: { question: str } },
+    maxTokens: 200,
+  }, fetchImpl);
+  const q = clip(out.question, 120);
+  if (!q || !/[\u4e00-\u9fff]/.test(q)) throw new Error('模型沒有給出研究問題');
+  return q;
+}
+
+/**
+ * 反思：一輪搜尋後證據不夠時，看這一輪查了什麼、找到什麼，決定下一輪的關鍵字要怎麼換。
+ * @param {object} o
+ * @param {string} o.claim 要查證的主張或研究問題
+ * @param {string} o.gap 還缺什麼（例如「反向證據只有 1 筆，至少要 3 筆」）
+ * @param {{zh:string,en:string,core:boolean,synonyms:string[]}[]} o.keywords 這一輪用的關鍵字
+ * @param {string[]} [o.found] 這一輪找到的文獻標題
+ * @param {string[]} [o.queries] 已經查過的查詢式
+ * @returns {Promise<{reason:string, keywords:{zh:string,en:string,role:'core'|'scope',synonyms:string[]}[]}>}
+ */
+export async function reflectSearch({ claim, gap, keywords = [], found = [], queries = [] }, fetchImpl) {
+  const out = await chatJSON({
+    system:
+      '你是協助學生查證文獻的研究助理。上一輪學術資料庫搜尋的證據不夠，你要檢討原因並決定下一輪的關鍵字。\n' +
+      '規則：\n' +
+      '1. 先判斷原因：用詞太窄（論文用的是別的說法）、主題詞太多（條件太嚴）、或方向不對。reason 用一句繁體中文寫出原因和你的調整。\n' +
+      '2. keywords 是下一輪完整的關鍵字清單（2 到 5 個）。可以換成學術界更常用的英文說法、補同義詞、把太嚴的主題詞改成範圍詞（role=scope）。\n' +
+      '3. 主張的核心概念不能丟掉，不要換成意思不同的詞；不要只是原封不動照抄上一輪。\n' +
+      '4. en 是英文論文標題會出現的學術用語（1 到 3 個英文單字），zh 用繁體中文，synonyms 給 1 到 3 個英文同義詞。',
+    user: `要查證的主張：${clip(claim, 300)}\n還缺什麼：${clip(gap, 200)}\n上一輪的關鍵字：${keywords.map((k) => `${k.zh || k.en}（${k.en}，${k.core ? '主題詞' : '範圍詞'}${(k.synonyms || []).length ? '，同義詞 ' + k.synonyms.join('/') : ''}）`).join('；')}\n查過的查詢式：${queries.slice(-4).map((q) => clip(q, 160)).join(' ｜ ') || '（無）'}\n上一輪找到的文獻：${found.slice(0, 8).map((t) => clip(t, 100)).join('；') || '（沒有找到）'}`,
+    schema: { type: 'object', required: ['reason', 'keywords'], properties: { reason: str, keywords: KW_SCHEMA } },
+    maxTokens: 600,
+  }, fetchImpl);
+  const kws = normKeywords(out.keywords);
+  if (kws.filter((k) => k.role === 'core').length < 1) throw new Error('模型沒有給出主題詞');
+  const same = kws.length === keywords.length && kws.every((k) => keywords.some((x) => x.en === k.en && !!x.core === (k.role === 'core')));
+  if (same) throw new Error('模型沒有調整關鍵字');
+  return { reason: clip(out.reason, 160), keywords: kws };
 }
 
 /**
