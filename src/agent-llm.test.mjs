@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { detect, modelLabel } from './llm.mjs';
-import { planSearch, translate, judgeWorks, refineEvidence, readInk, reflectSearch, scopeFocus, draftQuestion } from './agent-llm.mjs';
+import { planSearch, translate, judgeWorks, refineEvidence, readInk, reflectSearch, scopeFocus, draftQuestion, summarizeZh } from './agent-llm.mjs';
 
 // 假的 Ollama：/api/tags 回報有安裝的模型，/api/chat 回傳事先準備好的 JSON（並記下送出的內容）
 const fake = (models, reply) => {
@@ -127,4 +127,15 @@ test('chatJSON：文字步驟優先用 instruct 版並用 Schema 限制；只有
   assert.match(g.calls[0].messages[0].content, /JSON Schema/);
   assert.deepEqual(parseJSON('好的：[{"i":0}]', { type: 'object', properties: { items: { type: 'array' } } }), { items: [{ i: 0 }] });
   assert.throws(() => parseJSON('i=0, rel=3', {}), /格式/);
+});
+
+test('summarizeZh：韓文或英文的摘要不採用', async () => {
+  const { isZhText } = await import('./agent-llm.mjs');
+  assert.equal(isZhText('研究對象為 500 名大學生，睡前使用社群媒體越多，睡眠品質越差。'), true);
+  assert.equal(isZhText('연구 대상은 500명의 대학생이며 수면의 질이 낮았다'), false);
+  assert.equal(isZhText('The study found poorer sleep.'), false);
+  const ab = 'We surveyed 500 students; more bedtime social media use predicted poorer sleep quality and later sleep onset.';
+  const ko = fake(['qwen3:4b-instruct-2507-q4_K_M'], { zh: '연구 대상은 500명의 대학생이며 수면의 질이 낮았다' });
+  await detect(true, ko);
+  await assert.rejects(summarizeZh('t', ab, ko), /中文/);
 });

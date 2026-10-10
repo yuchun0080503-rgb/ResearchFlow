@@ -248,12 +248,23 @@ export async function refineEvidence({ claim, evidence, model = '' }, fetchImpl)
 export async function summarizeZh(title, abstract, fetchImpl) {
   if (clip(abstract, 1200).length < 60) return '';
   const out = await chatJSON({
-    system: '你是協助學生閱讀英文文獻的研究助理。請把下面這篇文獻的摘要整理成繁體中文，兩到三句、80 字以內，依序說明：研究對象與方法、主要發現。只能根據摘要，不要加入摘要沒有的內容；摘要沒有寫結果就照實說「摘要沒有寫出研究結果」。',
+    system: '你是協助學生閱讀英文文獻的研究助理。請把下面這篇文獻的摘要整理成繁體中文（台灣用語，不可以用韓文、日文或英文作答），兩到三句、80 字以內，依序說明：研究對象與方法、主要發現。只能根據摘要，不要加入摘要沒有的內容；摘要沒有寫結果就照實說「摘要沒有寫出研究結果」。',
     user: `標題：${clip(title, 200)}\n摘要：${clip(abstract, 1200)}`,
     schema: { type: 'object', required: ['zh'], properties: { zh: str } },
     maxTokens: 200, timeout: 90000,
   }, fetchImpl);
-  return clip(out.zh, 160);
+  const zh = clip(out.zh, 160);
+  // 小模型偶爾會寫成韓文、日文或英文：不是以繁體中文為主就不採用，呼叫端會改用翻譯或請學生看原文
+  if (!isZhText(zh)) throw new Error('模型沒有用中文寫摘要');
+  return zh;
+}
+
+// 是不是以中文為主的文字：有韓文或日文假名就不算；中文字要占文字的一半以上
+export function isZhText(t) {
+  const s = String(t || '');
+  if (/[\uac00-\ud7af\u1100-\u11ff\u3040-\u30ff]/.test(s)) return false;
+  const han = (s.match(/[\u4e00-\u9fff]/g) || []).length, latin = (s.match(/[A-Za-z]/g) || []).length;
+  return han >= 8 && han >= latin / 2;
 }
 
 /**
